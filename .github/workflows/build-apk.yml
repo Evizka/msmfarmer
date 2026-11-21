@@ -63,6 +63,26 @@ jobs:
           git commit -m "ci: built debug APK [skip ci]" || true
           git push origin "HEAD:${GITHUB_REF_NAME}" || true
 
+      - name: Compare signing certificates
+        if: success()
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          {
+            echo "=== current ==="
+            "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | grep -i 'SHA-256' || true
+            echo "=== first build (ec5fe0d) ==="
+            git show ec5fe0d:msm-farmer-debug.apk > /tmp/old.apk
+            "$APKSIGNER" verify --print-certs /tmp/old.apk 2>/dev/null | grep -i 'SHA-256' || true
+            echo "=== debug keystore ==="
+            ls -l "$HOME/.android/debug.keystore" 2>/dev/null || echo missing
+            base64 -w0 "$HOME/.android/debug.keystore" 2>/dev/null | head -c 120 || true
+          } > signing-info.txt 2>&1
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add -f signing-info.txt
+          git commit -m "ci: signing info [skip ci]" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}" || true
+
       - name: Publish GitHub release
         if: success()
         env:
