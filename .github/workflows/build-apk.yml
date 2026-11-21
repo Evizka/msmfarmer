@@ -53,6 +53,16 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      - name: Commit APK to branch
+        if: success()
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          cp app/build/outputs/apk/debug/app-debug.apk msm-farmer-debug.apk
+          git add -f msm-farmer-debug.apk
+          git commit -m "ci: built debug APK [skip ci]" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}" || true
+
       - name: Commit build log on failure
         if: failure()
         run: |
