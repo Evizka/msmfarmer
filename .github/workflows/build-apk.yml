@@ -63,6 +63,20 @@ jobs:
           git commit -m "ci: built debug APK [skip ci]" || true
           git push origin "HEAD:${GITHUB_REF_NAME}" || true
 
+      - name: Publish GitHub release
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v1.0.0 >/dev/null 2>&1; then
+            gh release upload v1.0.0 msm-farmer-debug.apk design/app-icon.png --clobber
+          else
+            gh release create v1.0.0 msm-farmer-debug.apk design/app-icon.png \
+              --target "${GITHUB_REF_NAME}" \
+              --title "MSM Farmer 1.0" \
+              --notes-file RELEASE_NOTES.md
+          fi
+
       - name: Commit build log on failure
         if: failure()
         run: |
