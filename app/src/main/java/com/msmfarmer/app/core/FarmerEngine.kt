@@ -16,7 +16,6 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private val thread = HandlerThread("msm-farmer").apply { start() }
     private val handler = Handler(thread.looper)
     private val tappedCells = HashMap<Long, Long>()
-    private val pendingCheck = HashMap<Long, Long>()
     private val stubborn = HashMap<Long, Int>()
     private val blacklist = HashMap<Long, Long>()
     private val keyCoords = HashMap<Long, String>()
@@ -111,33 +110,10 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         }
 
         // Учимся отличать монеты от статичных жёлтых деталей: если точка
-        // остаётся на месте после нажатия — помечаем её как ложную.
-        val seenKeys = HashSet<Long>()
+        // остаётся на месте после нескольких нажатий — помечаем её как ложную.
         detections.forEach { d ->
             val key = cellKey(d.x, d.y)
-            seenKeys.add(key)
             keyCoords[key] = "(${d.x.toInt()},${d.y.toInt()})"
-        }
-        val checkIterator = pendingCheck.entries.iterator()
-        while (checkIterator.hasNext()) {
-            val entry = checkIterator.next()
-            if (!seenKeys.contains(entry.key)) {
-                checkIterator.remove()
-                stubborn.remove(entry.key)
-                continue
-            }
-            val count = (stubborn[entry.key] ?: 0) + 1
-            stubborn[entry.key] = count
-            if (count >= 2) {
-                blacklist[entry.key] = now + 300_000L
-                checkIterator.remove()
-                stubborn.remove(entry.key)
-                FarmerState.ignoredSpots.value = FarmerState.ignoredSpots.value + 1
-                FarmerState.log(
-                    "Статичная жёлтая деталь ${keyCoords[entry.key] ?: ""} — добавляю в игнор на 5 мин",
-                    FarmerState.Level.WARN,
-                )
-            }
         }
         val blackIterator = blacklist.entries.iterator()
         while (blackIterator.hasNext()) {
@@ -160,9 +136,22 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
                 if (taps >= settings.tapsPerScan) break
                 val key = cellKey(d.x, d.y)
                 if (now - (tappedCells[key] ?: 0L) < settings.tapCooldownMs) continue
+                // Повторное нажатие по тому же месту с интервалом больше
+                // задержки означает, что это не монета, а деталь интерфейса.
+                val repeat = (stubborn[key] ?: 0) + 1
+                stubborn[key] = repeat
+                if (repeat >= 2) {
+                    blacklist[key] = now + 300_000L
+                    stubborn.remove(key)
+                    FarmerState.ignoredSpots.value = FarmerState.ignoredSpots.value + 1
+                    FarmerState.log(
+                        "Статичная жёлтая деталь ${keyCoords[key] ?: ""} — добавляю в игнор на 5 мин",
+                        FarmerState.Level.WARN,
+                    )
+                    continue
+                }
                 GestureController.tap(d.x, d.y, 85L)
                 tappedCells[key] = now
-                pendingCheck[key] = now
                 FarmerState.addTap()
                 taps++
             }
