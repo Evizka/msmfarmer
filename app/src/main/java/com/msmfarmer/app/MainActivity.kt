@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.msmfarmer.app.core.CoinDetector
 import com.msmfarmer.app.service.FarmerService
 import com.msmfarmer.app.service.sendLearnAction
 import com.msmfarmer.app.service.sendServiceAction
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         SettingsStore.load(this)
+        CoinDetector.prepare(this)
 
         projectionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK && result.data != null) {

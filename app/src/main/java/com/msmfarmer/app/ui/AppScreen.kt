@@ -323,9 +323,9 @@ private fun HomeTab(
             label = "Пауза после монеты",
             valueText = "${(settings.tapCooldownMs / 100f).roundToInt() / 10f} с",
             value = settings.tapCooldownMs.toFloat(),
-            range = 300f..3000f,
+            range = 300f..6000f,
             startLabel = "0.3 с",
-            endLabel = "3.0 с",
+            endLabel = "6.0 с",
         ) { update { s -> s.copy(tapCooldownMs = it.roundToInt().toLong()) } }
     }
 

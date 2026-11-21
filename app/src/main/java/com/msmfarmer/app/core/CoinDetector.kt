@@ -1,5 +1,6 @@
 package com.msmfarmer.app.core
 
+import android.content.Context
 import android.graphics.Bitmap
 import com.msmfarmer.app.model.Detection
 import com.msmfarmer.app.model.FarmerSettings
@@ -19,10 +20,15 @@ data class DetectorDebug(
     val candidates: Int = 0,
     val samples: String = "",
     val frameSize: String = "",
+    val templateReady: Boolean = false,
+    val matchedIcons: Int = 0,
+    val bestTemplateScore: Float = 0f,
 ) {
     fun summary(): String =
         "жёлтых=$yellowPixels компонент=$components отсеяно(размер)=$rejectedArea " +
-            "отсеяно(форма)=$rejectedShape кандидатов=$candidates $frameSize $samples"
+            "отсеяно(форма)=$rejectedShape кандидатов=$candidates " +
+            "иконок=$matchedIcons шаблон=${if (templateReady) "готов" else "нет"} " +
+            "$frameSize $samples"
 }
 
 /**
@@ -37,6 +43,11 @@ object CoinDetector {
     @Volatile
     var lastDebug: DetectorDebug = DetectorDebug()
         private set
+
+    /** Эталон иконки монеты загружается один раз при старте приложения. */
+    fun prepare(context: Context) {
+        CoinTemplate.load(context.applicationContext)
+    }
 
     @Synchronized
     fun detect(bitmap: Bitmap, settings: FarmerSettings): List<Detection> {
@@ -158,17 +169,24 @@ object CoinDetector {
         }
 
         val merged = mergeClose(found)
+        // Если эталон загружен, доверяем только ему: жёлтый декор больше
+        // не приводит к тапам по пустым местам.
+        val iconHits = if (CoinTemplate.isReady) CoinTemplate.find(bitmap, pixels) else emptyList()
+        val result = if (CoinTemplate.isReady) iconHits else merged
 
         lastDebug = DetectorDebug(
             yellowPixels = yellowPixels,
             components = found.size,
             rejectedArea = rejectedArea,
             rejectedShape = rejectedShape,
-            candidates = merged.size,
+            candidates = result.size,
             samples = samples.joinToString(" "),
             frameSize = "${w}x$h",
+            templateReady = CoinTemplate.isReady,
+            matchedIcons = iconHits.size,
+            bestTemplateScore = iconHits.maxOfOrNull { it.score } ?: 0f,
         )
-        return merged
+        return result
     }
 
     @Synchronized

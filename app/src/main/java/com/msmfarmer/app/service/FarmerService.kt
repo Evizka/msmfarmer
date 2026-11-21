@@ -13,6 +13,7 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.msmfarmer.app.MainActivity
 import com.msmfarmer.app.R
+import com.msmfarmer.app.core.CoinDetector
 import com.msmfarmer.app.core.FarmerEngine
 import com.msmfarmer.app.core.FarmerHud
 import com.msmfarmer.app.core.ScreenCapturer
@@ -51,6 +52,7 @@ class FarmerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        CoinDetector.prepare(this)
         createChannel()
     }
 
