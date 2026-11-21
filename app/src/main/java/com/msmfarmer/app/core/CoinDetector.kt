@@ -23,12 +23,13 @@ data class DetectorDebug(
     val templateReady: Boolean = false,
     val matchedIcons: Int = 0,
     val bestTemplateScore: Float = 0f,
+    val fallbackColor: Boolean = false,
 ) {
     fun summary(): String =
         "жёлтых=$yellowPixels компонент=$components отсеяно(размер)=$rejectedArea " +
             "отсеяно(форма)=$rejectedShape кандидатов=$candidates " +
             "иконок=$matchedIcons шаблон=${if (templateReady) "готов" else "нет"} " +
-            "$frameSize $samples"
+            "режим=${if (fallbackColor) "цвет" else "иконка"} $frameSize $samples"
 }
 
 /**
@@ -172,7 +173,14 @@ object CoinDetector {
         // Если эталон загружен, доверяем только ему: жёлтый декор больше
         // не приводит к тапам по пустым местам.
         val iconHits = if (CoinTemplate.isReady) CoinTemplate.find(bitmap, pixels) else emptyList()
-        val result = if (CoinTemplate.isReady) iconHits else merged
+        // Если эталон ничего не нашёл (иконка другого размера/вида), всё же
+        // продолжаем собирать по цвету — чтобы бот не вставал совсем.
+        val fallback = CoinTemplate.isReady && iconHits.isEmpty()
+        val result = if (iconHits.isNotEmpty() || !CoinTemplate.isReady) {
+            if (CoinTemplate.isReady) iconHits else merged
+        } else {
+            merged
+        }
 
         lastDebug = DetectorDebug(
             yellowPixels = yellowPixels,
@@ -185,6 +193,7 @@ object CoinDetector {
             templateReady = CoinTemplate.isReady,
             matchedIcons = iconHits.size,
             bestTemplateScore = iconHits.maxOfOrNull { it.score } ?: 0f,
+            fallbackColor = fallback,
         )
         return result
     }

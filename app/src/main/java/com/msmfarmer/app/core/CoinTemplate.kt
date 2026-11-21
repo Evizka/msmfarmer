@@ -31,11 +31,11 @@ object CoinTemplate {
     private const val LIGHT = 3
     private const val SKIP = 4
 
-    private const val COARSE_MIN = 0.72f
-    private const val DETAIL_MIN = 0.70f
+    private const val COARSE_MIN = 0.66f
+    private const val DETAIL_MIN = 0.64f
     private const val MAX_REFINED = 120
 
-    private val WIDTHS = intArrayOf(64, 88, 116, 148, 188, 236)
+    private val WIDTHS = intArrayOf(48, 64, 88, 116, 148, 188, 236, 300)
 
     @Volatile
     var isReady: Boolean = false
