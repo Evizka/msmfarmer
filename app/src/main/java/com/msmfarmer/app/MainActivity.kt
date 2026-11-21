@@ -7,6 +7,7 @@ import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var projectionLauncher: ActivityResultLauncher<Intent>
     private lateinit var notificationLauncher: ActivityResultLauncher<String>
     private lateinit var overlayLauncher: ActivityResultLauncher<Intent>
+    private lateinit var batteryLauncher: ActivityResultLauncher<Intent>
     private var pendingLearningAfterPermission = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,6 +71,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+        batteryLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            FarmerState.batteryUnrestricted.value = batteryOptimizedDisabled()
+        }
+
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -86,6 +92,7 @@ class MainActivity : ComponentActivity() {
                         onReplay = { replayFarmer() },
                         onStartLearning = { startLearning() },
                         onRequestOverlay = { requestOverlayPermission() },
+                        onRequestBattery = { requestBatteryOptimization() },
                         onStopLearning = { sendLearnAction(this@MainActivity, FarmerService.ACTION_LEARN_STOP) },
                         onMarkLearned = { sendLearnAction(this@MainActivity, FarmerService.ACTION_LEARN_MARK) },
                         onToggleHud = { sendServiceAction(this@MainActivity, FarmerService.ACTION_HUD_TOGGLE) },
@@ -122,6 +129,25 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FarmerState.overlayReady.value = Settings.canDrawOverlays(this)
+        FarmerState.batteryUnrestricted.value = batteryOptimizedDisabled()
+    }
+
+    private fun batteryOptimizedDisabled(): Boolean {
+        val pm = getSystemService(PowerManager::class.java)
+        return pm?.isIgnoringBatteryOptimizations(packageName) ?: false
+    }
+
+    private fun requestBatteryOptimization() {
+        if (batteryOptimizedDisabled()) {
+            FarmerState.batteryUnrestricted.value = true
+            return
+        }
+        batteryLauncher.launch(
+            Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:$packageName"),
+            ),
+        )
     }
 
     private fun startLearning() {

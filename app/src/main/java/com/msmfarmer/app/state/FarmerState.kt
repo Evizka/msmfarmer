@@ -23,6 +23,8 @@ object FarmerState {
     val hudVisible = MutableStateFlow(false)
     val hudStatus = MutableStateFlow("Ожидание")
     val detectorDebug = MutableStateFlow("Детектор ещё не запускался")
+    val ignoredSpots = MutableStateFlow(0)
+    val batteryUnrestricted = MutableStateFlow(false)
     val lastFrame = MutableStateFlow<Bitmap?>(null)
     val lastDetections = MutableStateFlow<List<Detection>>(emptyList())
     val stats = MutableStateFlow(Stats())
@@ -75,8 +77,8 @@ object SettingsStore {
             scanIntervalMs = p.getLong("scanIntervalMs", 350L),
             sensitivity = p.getFloat("sensitivity", 0.55f),
             minCoinRadiusPx = p.getInt("minCoinRadiusPx", 5),
-            maxCoinRadiusPx = p.getInt("maxCoinRadiusPx", 34),
-            tapCooldownMs = p.getLong("tapCooldownMs", 1200L),
+            maxCoinRadiusPx = p.getInt("maxCoinRadiusPx", 22),
+            tapCooldownMs = p.getLong("tapCooldownMs", 4000L),
             tapsPerScan = p.getInt("tapsPerScan", 6),
             ignoreTopFraction = p.getFloat("ignoreTopFraction", 0.10f),
             ignoreBottomFraction = p.getFloat("ignoreBottomFraction", 0.08f),

@@ -106,6 +106,7 @@ fun AppRoot(
     onReplay: () -> Unit,
     onStartLearning: () -> Unit,
     onRequestOverlay: () -> Unit,
+    onRequestBattery: () -> Unit,
     onStopLearning: () -> Unit,
     onMarkLearned: () -> Unit,
     onToggleHud: () -> Unit,
@@ -211,6 +212,7 @@ fun AppRoot(
                     onEnableAccessibility,
                     onRequestCapture,
                     onRequestOverlay,
+                    onRequestBattery,
                     onStop,
                     onToggleHud,
                     onSave,
@@ -228,6 +230,7 @@ private fun HomeTab(
     onEnableAccessibility: () -> Unit,
     onRequestCapture: () -> Unit,
     onRequestOverlay: () -> Unit,
+    onRequestBattery: () -> Unit,
     onStop: () -> Unit,
     onToggleHud: () -> Unit,
     onSave: () -> Unit,
@@ -237,6 +240,7 @@ private fun HomeTab(
     val accessibility by FarmerState.accessibilityReady.collectAsStateWithLifecycle()
     val capturing by FarmerState.capturing.collectAsStateWithLifecycle()
     val overlayReady by FarmerState.overlayReady.collectAsStateWithLifecycle()
+    val batteryUnrestricted by FarmerState.batteryUnrestricted.collectAsStateWithLifecycle()
     val stats by FarmerState.stats.collectAsStateWithLifecycle()
     val settings by FarmerState.settings.collectAsStateWithLifecycle()
     val frame by FarmerState.lastFrame.collectAsStateWithLifecycle()
@@ -274,6 +278,12 @@ private fun HomeTab(
             subtitle = "Для панели поверх приложений",
             done = overlayReady,
             onAction = onRequestOverlay,
+        )
+        PermissionRow(
+            title = "Батарея без ограничений",
+            subtitle = "Чтобы Xiaomi не глушила захват",
+            done = batteryUnrestricted,
+            onAction = onRequestBattery,
         )
     }
 
@@ -802,6 +812,7 @@ private fun PermissionRow(
                 imageVector = when (title) {
                     "Спец. возможности" -> Icons.Outlined.Accessibility
                     "Запись экрана" -> Icons.Outlined.ScreenShare
+                    "Батарея без ограничений" -> Icons.Outlined.Bolt
                     else -> Icons.Outlined.Layers
                 },
                 contentDescription = null,

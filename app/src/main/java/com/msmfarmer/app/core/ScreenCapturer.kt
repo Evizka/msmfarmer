@@ -74,7 +74,8 @@ class ScreenCapturer(
 
         mp.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() {
-                FarmerState.log("Захват экрана остановлен системой", FarmerState.Level.WARN)
+                FarmerState.log("Захват экрана остановлен системой — проверьте батарею и фоновую работу", FarmerState.Level.WARN)
+                FarmerState.hudStatus.value = "Захват экрана потерян"
                 latestRef.set(null)
                 FarmerState.capturing.value = false
                 onProjectionStopped()

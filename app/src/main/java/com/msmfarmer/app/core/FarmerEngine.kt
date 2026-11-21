@@ -16,6 +16,10 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private val thread = HandlerThread("msm-farmer").apply { start() }
     private val handler = Handler(thread.looper)
     private val tappedCells = HashMap<Long, Long>()
+    private val pendingCheck = HashMap<Long, Long>()
+    private val stubborn = HashMap<Long, Int>()
+    private val blacklist = HashMap<Long, Long>()
+    private val keyCoords = HashMap<Long, String>()
     @Volatile private var running = false
     @Volatile private var stopped = false
 
@@ -106,34 +110,70 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             FarmerState.log("Диагностика детектора: ${CoinDetector.lastDebug.summary()}", FarmerState.Level.INFO)
         }
 
+        // Учимся отличать монеты от статичных жёлтых деталей: если точка
+        // остаётся на месте после нажатия — помечаем её как ложную.
+        val seenKeys = HashSet<Long>()
+        detections.forEach { d ->
+            val key = cellKey(d.x, d.y)
+            seenKeys.add(key)
+            keyCoords[key] = "(${d.x.toInt()},${d.y.toInt()})"
+        }
+        val checkIterator = pendingCheck.entries.iterator()
+        while (checkIterator.hasNext()) {
+            val entry = checkIterator.next()
+            if (!seenKeys.contains(entry.key)) {
+                checkIterator.remove()
+                stubborn.remove(entry.key)
+                continue
+            }
+            val count = (stubborn[entry.key] ?: 0) + 1
+            stubborn[entry.key] = count
+            if (count >= 2) {
+                blacklist[entry.key] = now + 300_000L
+                checkIterator.remove()
+                stubborn.remove(entry.key)
+                FarmerState.ignoredSpots.value = FarmerState.ignoredSpots.value + 1
+                FarmerState.log(
+                    "Статичная жёлтая деталь ${keyCoords[entry.key] ?: ""} — добавляю в игнор на 5 мин",
+                    FarmerState.Level.WARN,
+                )
+            }
+        }
+        val blackIterator = blacklist.entries.iterator()
+        while (blackIterator.hasNext()) {
+            if (now >= blackIterator.next().value) blackIterator.remove()
+        }
+
         if (detections.isNotEmpty()) {
             idleSince = now
-            FarmerState.hudStatus.value = "Нашёл ${detections.size} — собираю монеты"
-            if (now - lastLogAt > 1500L) {
+            val active = detections.filter { now >= (blacklist[cellKey(it.x, it.y)] ?: 0L) }
+            FarmerState.hudStatus.value = "Кандидатов ${active.size}, ложных игнорируется ${FarmerState.ignoredSpots.value}"
+            if (active.isNotEmpty() && now - lastLogAt > 1500L) {
                 lastLogAt = now
                 FarmerState.log(
-                    "Кандидаты: ${detections.take(4).joinToString { "(${it.x.toInt()},${it.y.toInt()})" }}",
+                    "Кандидаты: ${active.take(4).joinToString { "(${it.x.toInt()},${it.y.toInt()})" }}",
                     FarmerState.Level.INFO,
                 )
             }
             var taps = 0
-            for (d in detections) {
+            for (d in active) {
                 if (taps >= settings.tapsPerScan) break
                 val key = cellKey(d.x, d.y)
                 if (now - (tappedCells[key] ?: 0L) < settings.tapCooldownMs) continue
                 GestureController.tap(d.x, d.y, 85L)
                 tappedCells[key] = now
+                pendingCheck[key] = now
                 FarmerState.addTap()
                 taps++
             }
             if (taps > 0) {
-                typicalCoinCount = (typicalCoinCount * 0.8f + detections.size * 0.2f)
+                typicalCoinCount = (typicalCoinCount * 0.8f + active.size * 0.2f)
                     .roundToInt()
                     .coerceIn(3, 24)
             }
             if (taps > 0 && now - lastLogAt > 1500L) {
                 lastLogAt = now
-                FarmerState.log("Собрано монет: $taps", FarmerState.Level.OK)
+                FarmerState.log("Нажатий за проход: $taps", FarmerState.Level.OK)
             }
             return
         }
