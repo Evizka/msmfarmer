@@ -1,0 +1,6 @@
+=== current ===
+Signer #1 certificate SHA-256 digest: 6fd0e1db1f4b1c1fb2ed1b30fd7622fe9220d655ef994cd606f3950f49d7d4c5
+=== first build (ec5fe0d) ===
+Signer #1 certificate SHA-256 digest: ea9a58e8ae6ed794bd7a7489be22fb94211be98237b215d4efeb50dee48842fb
+=== debug keystore ===
+missing
