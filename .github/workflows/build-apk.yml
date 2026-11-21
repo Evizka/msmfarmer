@@ -1,6 +1,9 @@
 name: Build APK
 
 on:
+  push:
+    branches:
+      - arena/92c12fdb-msmfarmer
   workflow_dispatch:
 
 jobs:
