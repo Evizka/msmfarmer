@@ -40,7 +40,9 @@ Android-приложение для автоматического сбора м
 
 APK будет здесь: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Готовый debug-APK также лежит в корне репозитория: [`msm-farmer-debug.apk`](msm-farmer-debug.apk). Он собран через GitHub Actions и подписан отладочным ключом. Установка: `adb install -r msm-farmer-debug.apk` (или просто откройте файл на телефоне и разрешите установку из неизвестных источников).
+Готовый debug-APK лежит в корне репозитория: [`msm-farmer-debug.apk`](msm-farmer-debug.apk), а также опубликован в [релизе v1.0.0](https://github.com/Evizka/msmfarmer/releases/tag/v1.0.0) вместе с иконкой `app-icon.png`. Он собран через GitHub Actions и подписан отладочным ключом. Установка: `adb install -r msm-farmer-debug.apk` (или просто откройте файл на телефоне и разрешите установку из неизвестных источников).
+
+Иконка приложения: [`design/app-icon.png`](design/app-icon.png) — зелёный квадрат с золотой монетой и ростком, в стиле выбранного дизайна.
 
 ## Как пользоваться
 
