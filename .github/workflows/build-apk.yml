@@ -67,6 +67,7 @@ jobs:
         if: success()
         run: |
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          git fetch --unshallow origin "refs/heads/${GITHUB_REF_NAME}" >/dev/null 2>&1 || git fetch origin >/dev/null 2>&1 || true
           {
             echo "=== current ==="
             "$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | grep -i 'SHA-256' || true
