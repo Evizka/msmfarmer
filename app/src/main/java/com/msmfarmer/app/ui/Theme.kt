@@ -11,17 +11,17 @@ import androidx.compose.ui.unit.sp
 
 /** Спокойная светлая палитра концепции «Минимал / Material 3». */
 object AppColors {
-    val Canvas = Color(0xFFF7F8F4)
+    val Canvas = Color(0xFFFAF9F4)
     val Surface = Color(0xFFFFFFFF)
-    val SurfaceMuted = Color(0xFFF1F4EE)
-    val Border = Color(0xFFE6EAE2)
-    val Text = Color(0xFF1F2A24)
-    val TextMuted = Color(0xFF6B7A70)
-    val Primary = Color(0xFF245C3C)
-    val PrimarySoft = Color(0xFFDCE9DC)
+    val SurfaceMuted = Color(0xFFEFF3ED)
+    val Border = Color(0xFFE3E9E0)
+    val Text = Color(0xFF1E2B23)
+    val TextMuted = Color(0xFF66766B)
+    val Primary = Color(0xFF2F6B4F)
+    val PrimarySoft = Color(0xFFDCEBDD)
     val Success = Color(0xFF2E7D4F)
     val Danger = Color(0xFFB44A3F)
-    val Gold = Color(0xFFD9A21B)
+    val Gold = Color(0xFFE0A81E)
 }
 
 private val Light = lightColorScheme(

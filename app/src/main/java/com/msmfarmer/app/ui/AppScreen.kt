@@ -245,6 +245,15 @@ private fun HomeTab(
         onSave()
     }
 
+    HeroCard(
+        running = running,
+        status = hudStatus,
+        hudVisible = hudVisible,
+        enabled = accessibility || running,
+        onStart = if (running) onStop else onRequestCapture,
+        onToggleHud = onToggleHud,
+    )
+
     SoftCard("Подготовка") {
         PermissionRow(
             title = "Спец. возможности",
@@ -260,43 +269,10 @@ private fun HomeTab(
         )
         PermissionRow(
             title = "Поверх других окон",
-            subtitle = "Для панели обучения",
+            subtitle = "Для панели поверх приложений",
             done = overlayReady,
             onAction = onRequestOverlay,
         )
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("Сейчас", style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)
-            Text(hudStatus, style = MaterialTheme.typography.bodyMedium)
-        }
-        OutlinedButton(onClick = onToggleHud) {
-            Text(if (hudVisible) "Скрыть HUD" else "Панель HUD")
-        }
-    }
-
-    Button(
-        onClick = if (running) onStop else onRequestCapture,
-        enabled = accessibility || running,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AppColors.Primary,
-            contentColor = Color.White,
-            disabledContainerColor = AppColors.PrimarySoft,
-            disabledContentColor = AppColors.TextMuted,
-        ),
-    ) {
-        Icon(
-            imageVector = if (running) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(if (running) "Остановить сбор" else "Начать сбор", style = MaterialTheme.typography.labelLarge)
     }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -695,6 +671,75 @@ private fun PreviewImage(bitmap: Bitmap?, detections: List<Detection>, showMarke
                         radius = d.radius * kotlin.math.min(sx, sy) * 1.5f,
                         center = Offset(d.x * sx, d.y * sy),
                         style = Stroke(2.dp.toPx()),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroCard(
+    running: Boolean,
+    status: String,
+    hudVisible: Boolean,
+    enabled: Boolean,
+    onStart: () -> Unit,
+    onToggleHud: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = AppColors.Primary),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "MSM FARMER",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.72f),
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (running) "● В работе" else "○ Готов к запуску",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White,
+                )
+            }
+            Text(status, style = MaterialTheme.typography.titleLarge, color = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = onStart,
+                    enabled = enabled,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = AppColors.Primary,
+                        disabledContainerColor = Color.White.copy(alpha = 0.45f),
+                        disabledContentColor = AppColors.Primary,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = if (running) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (running) "Остановить" else "Начать сбор", style = MaterialTheme.typography.labelLarge)
+                }
+                Spacer(Modifier.width(10.dp))
+                IconButton(onClick = onToggleHud) {
+                    Icon(
+                        imageVector = Icons.Outlined.Layers,
+                        contentDescription = "Панель поверх приложений",
+                        tint = if (hudVisible) Color.White else Color.White.copy(alpha = 0.6f),
                     )
                 }
             }

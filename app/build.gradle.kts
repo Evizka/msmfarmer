@@ -20,6 +20,26 @@ android {
         compose = true
     }
 
+    // Постоянный ключ: все сборки подписываются одинаково, поэтому
+    // новая версия ставится поверх предыдущей без удаления.
+    signingConfigs {
+        create("persistent") {
+            storeFile = file("msm-farmer.keystore")
+            storePassword = "msmfarmer"
+            keyAlias = "msmfarmer"
+            keyPassword = "msmfarmer"
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("persistent")
+        }
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("persistent")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
