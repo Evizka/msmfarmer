@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import androidx.compose.ui.graphics.toArgb
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -34,11 +35,11 @@ class FarmerHud(
 
     private val statusView = TextView(appContext).apply {
         textSize = 13f
-        setTextColor(AppColors.Text)
+        setTextColor(AppColors.Text.toArgb())
     }
     private val statsView = TextView(appContext).apply {
         textSize = 11f
-        setTextColor(AppColors.TextMuted)
+        setTextColor(AppColors.TextMuted.toArgb())
     }
     private val pauseButton = Button(appContext).apply {
         text = "⏸"
@@ -64,13 +65,13 @@ class FarmerHud(
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 16f * density
             setColor(Color.argb(242, 27, 38, 32))
-            setStroke((1f * density).toInt(), AppColors.Border)
+            setStroke((1f * density).toInt(), AppColors.Border.toArgb())
         }
         addView(
             TextView(appContext).apply {
                 text = "MSM Farmer"
                 textSize = 12f
-                setTextColor(AppColors.Primary)
+                setTextColor(AppColors.Primary.toArgb())
             },
         )
         addView(statusView)
