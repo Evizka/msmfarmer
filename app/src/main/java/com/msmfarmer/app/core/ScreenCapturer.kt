@@ -65,7 +65,10 @@ class ScreenCapturer(
 
     fun start() {
         if (stopped) return
-        val mp = manager.getMediaProjection(resultCode, projectionIntent)
+        val mp = manager.getMediaProjection(resultCode, projectionIntent) ?: run {
+            FarmerState.log("Не удалось начать захват экрана", FarmerState.Level.WARN)
+            return
+        }
         projection = mp
 
         mp.registerCallback(object : MediaProjection.Callback() {

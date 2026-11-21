@@ -160,8 +160,8 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             val index = islandIndex % learned.size
             return learned[index] to "обученному маршруту №${index + 1}"
         }
-        if (settings.macro.value.isNotEmpty()) {
-            return settings.macro.value to "ручному макросу"
+        if (FarmerState.macro.value.isNotEmpty()) {
+            return FarmerState.macro.value to "ручному макросу"
         }
         if (learned.isNotEmpty()) {
             val index = islandIndex % learned.size

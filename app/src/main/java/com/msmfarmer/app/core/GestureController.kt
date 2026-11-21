@@ -1,6 +1,6 @@
 package com.msmfarmer.app.core
 
-import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
@@ -34,10 +34,10 @@ object GestureController {
         dispatch(buildGesture(path, durationMs), "свайп")
     }
 
-    private fun buildGesture(path: Path, durationMs: Long): AccessibilityService.GestureDescription =
-        AccessibilityService.GestureDescription.Builder()
+    private fun buildGesture(path: Path, durationMs: Long): GestureDescription =
+        GestureDescription.Builder()
             .addStroke(
-                AccessibilityService.GestureDescription.StrokeDescription(
+                GestureDescription.StrokeDescription(
                     path,
                     0,
                     durationMs.coerceAtLeast(16L),
@@ -45,7 +45,7 @@ object GestureController {
             )
             .build()
 
-    private fun dispatch(gesture: AccessibilityService.GestureDescription, label: String) {
+    private fun dispatch(gesture: GestureDescription, label: String) {
         val service = FarmerAccessibilityService.instance
         if (service == null) {
             FarmerState.log("Служба доступности не включена — жест «$label» пропущен", FarmerState.Level.WARN)
