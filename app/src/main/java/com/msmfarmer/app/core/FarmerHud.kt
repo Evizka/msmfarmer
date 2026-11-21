@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.msmfarmer.app.state.FarmerState
+import com.msmfarmer.app.ui.AppColors
 
 /**
  * Небольшая панель поверх игр: показывает, что делает бот прямо сейчас.
@@ -33,11 +34,11 @@ class FarmerHud(
 
     private val statusView = TextView(appContext).apply {
         textSize = 13f
-        setTextColor(Color.rgb(31, 42, 36))
+        setTextColor(AppColors.Text)
     }
     private val statsView = TextView(appContext).apply {
         textSize = 11f
-        setTextColor(Color.rgb(107, 122, 112))
+        setTextColor(AppColors.TextMuted)
     }
     private val pauseButton = Button(appContext).apply {
         text = "⏸"
@@ -62,14 +63,14 @@ class FarmerHud(
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 16f * density
-            setColor(Color.argb(240, 255, 255, 255))
-            setStroke((1f * density).toInt(), Color.rgb(230, 234, 226))
+            setColor(Color.argb(242, 27, 38, 32))
+            setStroke((1f * density).toInt(), AppColors.Border)
         }
         addView(
             TextView(appContext).apply {
                 text = "MSM Farmer"
                 textSize = 12f
-                setTextColor(Color.rgb(36, 92, 60))
+                setTextColor(AppColors.Primary)
             },
         )
         addView(statusView)

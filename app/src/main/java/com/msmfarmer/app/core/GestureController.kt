@@ -53,7 +53,11 @@ object GestureController {
         }
         mainHandler.post {
             val ok = service.dispatchGesture(gesture, null, null)
-            if (!ok) FarmerState.log("Не удалось выполнить жест «$label»", FarmerState.Level.WARN)
+            if (ok) {
+                FarmerState.log("Жест принят системой: $label", FarmerState.Level.INFO)
+            } else {
+                FarmerState.log("Не удалось выполнить жест «$label»", FarmerState.Level.WARN)
+            }
         }
     }
 }

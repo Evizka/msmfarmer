@@ -7,7 +7,7 @@ package com.msmfarmer.app.model
 data class FarmerSettings(
     val scanIntervalMs: Long = 350L,
     val sensitivity: Float = 0.55f,
-    val minCoinRadiusPx: Int = 7,
+    val minCoinRadiusPx: Int = 5,
     val maxCoinRadiusPx: Int = 34,
     val tapCooldownMs: Long = 1200L,
     val tapsPerScan: Int = 6,

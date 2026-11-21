@@ -2,35 +2,35 @@ package com.msmfarmer.app.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-/** Спокойная светлая палитра концепции «Минимал / Material 3». */
+/** Тёмная Material 3 палитра. */
 object AppColors {
-    val Canvas = Color(0xFFFAF9F4)
-    val Surface = Color(0xFFFFFFFF)
-    val SurfaceMuted = Color(0xFFEFF3ED)
-    val Border = Color(0xFFE3E9E0)
-    val Text = Color(0xFF1E2B23)
-    val TextMuted = Color(0xFF66766B)
-    val Primary = Color(0xFF2F6B4F)
-    val PrimarySoft = Color(0xFFDCEBDD)
-    val Success = Color(0xFF2E7D4F)
-    val Danger = Color(0xFFB44A3F)
-    val Gold = Color(0xFFE0A81E)
+    val Canvas = Color(0xFF111815)
+    val Surface = Color(0xFF1B2620)
+    val SurfaceMuted = Color(0xFF243129)
+    val Border = Color(0xFF34443A)
+    val Text = Color(0xFFE8F0E9)
+    val TextMuted = Color(0xFF9FB0A4)
+    val Primary = Color(0xFF7BC79B)
+    val PrimarySoft = Color(0xFF2E4A39)
+    val Success = Color(0xFF7BC79B)
+    val Danger = Color(0xFFF09A8F)
+    val Gold = Color(0xFFE5B84B)
 }
 
-private val Light = lightColorScheme(
+private val Dark = darkColorScheme(
     primary = AppColors.Primary,
-    onPrimary = Color.White,
+    onPrimary = Color(0xFF102018),
     primaryContainer = AppColors.PrimarySoft,
     onPrimaryContainer = AppColors.Primary,
     secondary = AppColors.Primary,
-    onSecondary = Color.White,
+    onSecondary = Color(0xFF102018),
     background = AppColors.Canvas,
     onBackground = AppColors.Text,
     surface = AppColors.Surface,
@@ -42,38 +42,18 @@ private val Light = lightColorScheme(
 )
 
 private val AppTypography = Typography(
-    titleLarge = TextStyle(
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        fontWeight = FontWeight.SemiBold,
-    ),
-    titleMedium = TextStyle(
-        fontSize = 17.sp,
-        lineHeight = 23.sp,
-        fontWeight = FontWeight.SemiBold,
-    ),
-    bodyLarge = TextStyle(
-        fontSize = 15.sp,
-        lineHeight = 21.sp,
-    ),
-    bodyMedium = TextStyle(
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    ),
-    bodySmall = TextStyle(
-        fontSize = 12.sp,
-        lineHeight = 17.sp,
-    ),
-    labelLarge = TextStyle(
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Medium,
-    ),
+    titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 21.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
+    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
+    labelLarge = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium),
 )
 
 @Composable
 fun MSMFarmerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = Light,
+        colorScheme = Dark,
         typography = AppTypography,
         content = content,
     )

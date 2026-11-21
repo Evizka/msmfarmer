@@ -22,6 +22,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private var idleSince = 0L
     private var islandIndex = 0
     private var lastLogAt = 0L
+    private var lastDiagLogAt = 0L
     private var typicalCoinCount = 8
     private var calibrateAt = 0L
 
@@ -97,11 +98,24 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         FarmerState.lastFrame.value = bitmap
         val detections = CoinDetector.detect(bitmap, settings)
         FarmerState.lastDetections.value = if (settings.debugMarkers) detections else emptyList()
+        FarmerState.detectorDebug.value = CoinDetector.lastDebug.summary()
         FarmerState.addScan()
+
+        if (now - lastDiagLogAt > 4000L) {
+            lastDiagLogAt = now
+            FarmerState.log("Диагностика детектора: ${CoinDetector.lastDebug.summary()}", FarmerState.Level.INFO)
+        }
 
         if (detections.isNotEmpty()) {
             idleSince = now
             FarmerState.hudStatus.value = "Нашёл ${detections.size} — собираю монеты"
+            if (now - lastLogAt > 1500L) {
+                lastLogAt = now
+                FarmerState.log(
+                    "Кандидаты: ${detections.take(4).joinToString { "(${it.x.toInt()},${it.y.toInt()})" }}",
+                    FarmerState.Level.INFO,
+                )
+            }
             var taps = 0
             for (d in detections) {
                 if (taps >= settings.tapsPerScan) break

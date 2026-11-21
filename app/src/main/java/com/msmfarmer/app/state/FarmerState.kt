@@ -22,6 +22,7 @@ object FarmerState {
     val paused = MutableStateFlow(false)
     val hudVisible = MutableStateFlow(false)
     val hudStatus = MutableStateFlow("Ожидание")
+    val detectorDebug = MutableStateFlow("Детектор ещё не запускался")
     val lastFrame = MutableStateFlow<Bitmap?>(null)
     val lastDetections = MutableStateFlow<List<Detection>>(emptyList())
     val stats = MutableStateFlow(Stats())
@@ -73,7 +74,7 @@ object SettingsStore {
         FarmerState.settings.value = FarmerSettings(
             scanIntervalMs = p.getLong("scanIntervalMs", 350L),
             sensitivity = p.getFloat("sensitivity", 0.55f),
-            minCoinRadiusPx = p.getInt("minCoinRadiusPx", 7),
+            minCoinRadiusPx = p.getInt("minCoinRadiusPx", 5),
             maxCoinRadiusPx = p.getInt("maxCoinRadiusPx", 34),
             tapCooldownMs = p.getLong("tapCooldownMs", 1200L),
             tapsPerScan = p.getInt("tapsPerScan", 6),

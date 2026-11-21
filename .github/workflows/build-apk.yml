@@ -3,6 +3,9 @@ name: Build APK
 permissions:
   contents: write
 
+env:
+  RELEASE_TAG: v1.2.0
+
 on:
   push:
     branches:
@@ -105,12 +108,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v1.0.0 >/dev/null 2>&1; then
-            gh release upload v1.0.0 msm-farmer-debug.apk design/app-icon.png --clobber
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" msm-farmer-debug.apk design/app-icon.png --clobber
           else
-            gh release create v1.0.0 msm-farmer-debug.apk design/app-icon.png \
+            gh release create "$RELEASE_TAG" msm-farmer-debug.apk design/app-icon.png \
               --target "${GITHUB_REF_NAME}" \
-              --title "MSM Farmer 1.0" \
+              --title "MSM Farmer 1.2.0" \
               --notes-file RELEASE_NOTES.md
           fi
 

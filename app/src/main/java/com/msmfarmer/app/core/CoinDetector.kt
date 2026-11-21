@@ -10,27 +10,42 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
+/** Статистика одного прохода детектора — нужна, чтобы понять, почему нет тапов. */
+data class DetectorDebug(
+    val yellowPixels: Int = 0,
+    val components: Int = 0,
+    val rejectedArea: Int = 0,
+    val rejectedShape: Int = 0,
+    val candidates: Int = 0,
+    val samples: String = "",
+    val frameSize: String = "",
+) {
+    fun summary(): String =
+        "жёлтых=$yellowPixels компонент=$components отсеяно(размер)=$rejectedArea " +
+            "отсеяно(форма)=$rejectedShape кандидатов=$candidates $frameSize $samples"
+}
+
 /**
- * Ищет жёлтые «монетные» иконки по пикселям кадра.
- *
- * Alg:
- *  1. кадр уменьшается в 4 раза (шаг сэмплирования);
- *  2. жёлтые пиксели превращаются в маску;
- *  3. связные компоненты фильтруются по площади/форме;
- *  4. близкие кандидаты сливаются в одну точку.
- *
- * Никаких сетевых запросов и доступа к данным игры — только пиксели экрана.
+ * Ищет жёлтые/золотые иконки по пикселям кадра.
+ * Шаг сэмплирования 3 — мелкие иконки не теряются.
  */
 object CoinDetector {
 
-    private const val SAMPLE = 4
+    private const val SAMPLE = 3
     private var pixelBuffer: IntArray? = null
+
+    @Volatile
+    var lastDebug: DetectorDebug = DetectorDebug()
+        private set
 
     @Synchronized
     fun detect(bitmap: Bitmap, settings: FarmerSettings): List<Detection> {
         val w = bitmap.width
         val h = bitmap.height
-        if (w < SAMPLE || h < SAMPLE) return emptyList()
+        if (w < SAMPLE || h < SAMPLE) {
+            lastDebug = DetectorDebug(frameSize = "${w}x$h")
+            return emptyList()
+        }
 
         val sw = (w + SAMPLE - 1) / SAMPLE
         val sh = (h + SAMPLE - 1) / SAMPLE
@@ -40,6 +55,8 @@ object CoinDetector {
         val topRows = (h * settings.ignoreTopFraction / SAMPLE).toInt()
         val bottomRows = (h * settings.ignoreBottomFraction / SAMPLE).toInt()
         val mask = BooleanArray(sw * sh)
+        var yellowPixels = 0
+        val samples = ArrayList<String>(3)
 
         for (sy in 0 until sh) {
             if (sy < topRows || sy >= sh - bottomRows) continue
@@ -53,6 +70,10 @@ object CoinDetector {
                 val b = argb and 0xFF
                 if (isCoinColor(r, g, b, settings.sensitivity)) {
                     mask[sy * sw + sx] = true
+                    yellowPixels++
+                    if (samples.size < 3 && r > 160 && g > 90 && b < 140) {
+                        samples.add("RGB($r,$g,$b)")
+                    }
                 }
             }
         }
@@ -60,6 +81,8 @@ object CoinDetector {
         val visited = BooleanArray(sw * sh)
         val queue = IntArray(sw * sh)
         val found = ArrayList<Detection>()
+        var rejectedArea = 0
+        var rejectedShape = 0
 
         for (start in mask.indices) {
             if (!mask[start] || visited[start]) continue
@@ -110,18 +133,20 @@ object CoinDetector {
             val bw = maxX - minX + 1
             val bh = maxY - minY + 1
             val area = count * SAMPLE * SAMPLE.toFloat()
-            if (area < settings.minArea || area > settings.maxArea) continue
-
+            if (area < settings.minArea || area > settings.maxArea) {
+                rejectedArea++
+                continue
+            }
             val aspect = bw.toFloat() / bh.toFloat()
-            if (aspect < 0.45f || aspect > 2.2f) continue
-
             val fill = count.toFloat() / (bw * bh)
-            if (fill < 0.22f || fill > 0.95f) continue
+            if (aspect < 0.35f || aspect > 2.8f || fill < 0.15f || fill > 0.97f) {
+                rejectedShape++
+                continue
+            }
 
             val radius = (max(bw, bh) * SAMPLE * 0.58f)
                 .coerceIn(settings.minCoinRadiusPx.toFloat(), settings.maxCoinRadiusPx.toFloat())
-            val score = fill * (1f - abs(aspect - 1f) * 0.35f)
-
+            val score = fill * (1f - abs(aspect - 1f) * 0.25f)
             found.add(
                 Detection(
                     x = (sumX.toFloat() / count + 0.5f) * SAMPLE,
@@ -132,13 +157,20 @@ object CoinDetector {
             )
         }
 
-        return mergeClose(found)
+        val merged = mergeClose(found)
+
+        lastDebug = DetectorDebug(
+            yellowPixels = yellowPixels,
+            components = found.size,
+            rejectedArea = rejectedArea,
+            rejectedShape = rejectedShape,
+            candidates = merged.size,
+            samples = samples.joinToString(" "),
+            frameSize = "${w}x$h",
+        )
+        return merged
     }
 
-    /**
-     * Подбирает чувствительность, при которой на текущем кадре находится
-     * примерно [target] жёлтых иконок. Используется кнопкой «Обучить по кадру».
-     */
     @Synchronized
     fun autoCalibrate(bitmap: Bitmap, baseSettings: FarmerSettings, target: Int = 8): Float {
         val candidates = listOf(0.20f, 0.30f, 0.40f, 0.50f, 0.60f, 0.70f, 0.80f, 0.90f, 0.95f)
@@ -159,29 +191,33 @@ object CoinDetector {
         val result = ArrayList<Detection>()
         for (item in items.sortedByDescending { it.score }) {
             val threshold = item.radius * 1.5f
-            val duplicate = result.any { other ->
-                hypot(other.x - item.x, other.y - item.y) < threshold
-            }
+            val duplicate = result.any { other -> hypot(other.x - item.x, other.y - item.y) < threshold }
             if (!duplicate) result.add(item)
         }
         return result
     }
 
+    /**
+     * Более мягкий фильтр, чем раньше: ловим жёлтые, золотые и оранжевые
+     * иконки, включая полупрозрачные и с белым бликом.
+     */
     private fun isCoinColor(r: Int, g: Int, b: Int, sensitivity: Float): Boolean {
-        val minR = 220 - (sensitivity * 62f).toInt()
-        val minG = 132 - (sensitivity * 40f).toInt()
-        val maxB = 88 + (sensitivity * 58f).toInt()
+        val minR = 165 - (sensitivity * 25f).toInt()
+        val minG = 85 - (sensitivity * 15f).toInt()
+        val maxB = 165 - (sensitivity * 35f).toInt()
 
         if (r < minR || g < minG || b > maxB) return false
-        if (g >= r - 6) return false
-        if (b > g - 24) return false
+        if (g > r + 10) return false
+        if (b > g - 12) return false
+        if (r < 210 && b > 90) return false
 
         val max = maxOf(r, g, b)
         val min = minOf(r, g, b)
         val saturation = (max - min) / max.toFloat()
-        if (saturation < 0.44f - sensitivity * 0.12f) return false
+        if (saturation < 0.28f - sensitivity * 0.08f) return false
 
-        return hueDegrees(r, g, b) in 33f..62f
+        val hue = hueDegrees(r, g, b)
+        return hue in 25f..70f
     }
 
     private fun hueDegrees(r: Int, g: Int, b: Int): Float {

@@ -84,11 +84,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.msmfarmer.app.core.CoinDetector
+import com.msmfarmer.app.core.LogExporter
 import com.msmfarmer.app.model.Detection
 import com.msmfarmer.app.model.FarmerSettings
 import com.msmfarmer.app.model.MacroCodec
@@ -340,11 +342,26 @@ private fun HomeTab(
 
 @Composable
 private fun StatsTab() {
+    val context = LocalContext.current
     val stats by FarmerState.stats.collectAsStateWithLifecycle()
     val logs by FarmerState.logs.collectAsStateWithLifecycle()
+    val detectorDebug by FarmerState.detectorDebug.collectAsStateWithLifecycle()
     val uptime = if (stats.startedAt > 0L) {
         (System.currentTimeMillis() - stats.startedAt) / 1000
     } else 0L
+
+    SoftCard("Диагностика") {
+        Text(detectorDebug, style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)
+        Text(
+            "Если сканы идут, а тапов нет — отправьте этот отчёт разработчику.",
+            style = MaterialTheme.typography.bodySmall,
+            color = AppColors.TextMuted,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { LogExporter.share(context) }) { Text("Поделиться") }
+            OutlinedButton(onClick = { LogExporter.openGithubIssue(context) }) { Text("GitHub issue") }
+        }
+    }
 
     SoftCard("Сводка") {
         Row(Modifier.fillMaxWidth()) {
@@ -701,16 +718,16 @@ private fun HeroCard(
                 Text(
                     "MSM FARMER",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.72f),
+                    color = AppColors.Canvas.copy(alpha = 0.72f),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     if (running) "● В работе" else "○ Готов к запуску",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
+                    color = AppColors.Canvas,
                 )
             }
-            Text(status, style = MaterialTheme.typography.titleLarge, color = Color.White)
+            Text(status, style = MaterialTheme.typography.titleLarge, color = AppColors.Canvas)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = onStart,
@@ -720,9 +737,9 @@ private fun HeroCard(
                         .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
+                        containerColor = AppColors.Surface,
                         contentColor = AppColors.Primary,
-                        disabledContainerColor = Color.White.copy(alpha = 0.45f),
+                        disabledContainerColor = AppColors.Surface.copy(alpha = 0.5f),
                         disabledContentColor = AppColors.Primary,
                     ),
                 ) {
@@ -739,7 +756,7 @@ private fun HeroCard(
                     Icon(
                         imageVector = Icons.Outlined.Layers,
                         contentDescription = "Панель поверх приложений",
-                        tint = if (hudVisible) Color.White else Color.White.copy(alpha = 0.6f),
+                        tint = if (hudVisible) AppColors.Canvas else AppColors.Canvas.copy(alpha = 0.6f),
                     )
                 }
             }
