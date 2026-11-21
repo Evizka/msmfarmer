@@ -40,6 +40,22 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Ensure persistent signing keystore
+        run: |
+          if [ ! -f app/msm-farmer.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore app/msm-farmer.keystore \
+              -alias msmfarmer \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass msmfarmer -keypass msmfarmer \
+              -dname "CN=MSM Farmer, OU=Dev, O=MSM Farmer, L=Moscow, ST=Moscow, C=RU" >/dev/null 2>&1
+            git config user.name "ci-bot"
+            git config user.email "ci-bot@users.noreply.github.com"
+            git add -f app/msm-farmer.keystore
+            git commit -m "ci: add persistent signing keystore [skip ci]" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}" || true
+          fi
+
       - name: Build debug APK
         run: |
           set -o pipefail
