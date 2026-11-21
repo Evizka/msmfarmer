@@ -29,7 +29,8 @@ data class DetectorDebug(
         "жёлтых=$yellowPixels компонент=$components отсеяно(размер)=$rejectedArea " +
             "отсеяно(форма)=$rejectedShape кандидатов=$candidates " +
             "иконок=$matchedIcons шаблон=${if (templateReady) "готов" else "нет"} " +
-            "режим=${if (fallbackColor) "цвет" else "иконка"} $frameSize $samples"
+            "режим=${if (fallbackColor) "цвет" else "иконка"} " +
+            "лучший=${(bestTemplateScore * 100).toInt()}% $frameSize $samples"
 }
 
 /**

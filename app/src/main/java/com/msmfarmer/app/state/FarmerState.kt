@@ -78,7 +78,7 @@ object SettingsStore {
             sensitivity = p.getFloat("sensitivity", 0.55f),
             minCoinRadiusPx = p.getInt("minCoinRadiusPx", 5),
             maxCoinRadiusPx = p.getInt("maxCoinRadiusPx", 22),
-            tapCooldownMs = p.getLong("tapCooldownMs", 4000L),
+            tapCooldownMs = p.getLong("tapCooldownMs", 1200L),
             tapsPerScan = p.getInt("tapsPerScan", 6),
             ignoreTopFraction = p.getFloat("ignoreTopFraction", 0.10f),
             ignoreBottomFraction = p.getFloat("ignoreBottomFraction", 0.08f),

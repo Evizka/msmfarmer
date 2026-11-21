@@ -136,11 +136,12 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
                 if (taps >= settings.tapsPerScan) break
                 val key = cellKey(d.x, d.y)
                 if (now - (tappedCells[key] ?: 0L) < settings.tapCooldownMs) continue
-                // Повторное нажатие по тому же месту с интервалом больше
-                // задержки означает, что это не монета, а деталь интерфейса.
+                // В режиме поиска по иконке доверяем детектору и не баним
+                // реальные монеты, которые держатся на месте несколько секунд.
+                // Список игнора нужен только при откате на поиск по цвету.
                 val repeat = (stubborn[key] ?: 0) + 1
                 stubborn[key] = repeat
-                if (repeat >= 2) {
+                if (CoinDetector.lastDebug.fallbackColor && repeat >= 2) {
                     blacklist[key] = now + 300_000L
                     stubborn.remove(key)
                     FarmerState.ignoredSpots.value = FarmerState.ignoredSpots.value + 1

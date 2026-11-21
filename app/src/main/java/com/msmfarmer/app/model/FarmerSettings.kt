@@ -9,7 +9,7 @@ data class FarmerSettings(
     val sensitivity: Float = 0.55f,
     val minCoinRadiusPx: Int = 5,
     val maxCoinRadiusPx: Int = 22,
-    val tapCooldownMs: Long = 4000L,
+    val tapCooldownMs: Long = 1200L,
     val tapsPerScan: Int = 6,
     val ignoreTopFraction: Float = 0.10f,
     val ignoreBottomFraction: Float = 0.08f,
