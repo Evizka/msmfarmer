@@ -9,17 +9,21 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.msmfarmer.app.MainActivity
 import com.msmfarmer.app.R
 import com.msmfarmer.app.core.FarmerEngine
+import com.msmfarmer.app.core.FarmerHud
 import com.msmfarmer.app.core.ScreenCapturer
+import com.msmfarmer.app.core.ScreenFingerprint
 import com.msmfarmer.app.core.TouchLearningOverlay
+import com.msmfarmer.app.model.LearnedRoute
 import com.msmfarmer.app.model.MacroStep
 import com.msmfarmer.app.state.FarmerState
 import com.msmfarmer.app.state.SettingsStore
 
-/** Фоновая служба: держит захват экрана и цикл сбора. */
+/** Фоновая служба: держит захват экрана, цикл сбора, обучение и HUD. */
 class FarmerService : Service() {
 
     companion object {
@@ -29,6 +33,8 @@ class FarmerService : Service() {
         const val ACTION_LEARN_START = "com.msmfarmer.app.LEARN_START"
         const val ACTION_LEARN_MARK = "com.msmfarmer.app.LEARN_MARK"
         const val ACTION_LEARN_STOP = "com.msmfarmer.app.LEARN_STOP"
+        const val ACTION_PAUSE = "com.msmfarmer.app.PAUSE"
+        const val ACTION_HUD_TOGGLE = "com.msmfarmer.app.HUD_TOGGLE"
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_DATA = "data"
 
@@ -39,7 +45,9 @@ class FarmerService : Service() {
     private var capturer: ScreenCapturer? = null
     private var engine: FarmerEngine? = null
     private var learningOverlay: TouchLearningOverlay? = null
+    private var hud: FarmerHud? = null
     private val pendingLearnSteps = mutableListOf<MacroStep>()
+    private var pendingLearnSource = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -56,12 +64,21 @@ class FarmerService : Service() {
             ACTION_LEARN_START -> startLearning()
             ACTION_LEARN_MARK -> commitLearnedRoute()
             ACTION_LEARN_STOP -> stopLearning()
+            ACTION_PAUSE -> {
+                val paused = !FarmerState.paused.value
+                FarmerState.paused.value = paused
+                FarmerState.log(if (paused) "Сбор на паузе" else "Сбор продолжен", FarmerState.Level.INFO)
+                if (engine == null && learningOverlay == null && hud == null) stopSelf()
+            }
+            ACTION_HUD_TOGGLE -> {
+                if (hud != null) hideHud() else showHud()
+                if (engine == null && learningOverlay == null && hud == null) stopSelf()
+            }
             ACTION_REPLAY -> {
                 val farmer = engine
                 if (farmer != null) {
                     farmer.replayMacroNow()
                 } else {
-                    startForeground(NOTIFICATION_ID, buildNotification())
                     FarmerState.log("Сначала запустите сбор", FarmerState.Level.WARN)
                     stopSelf()
                 }
@@ -86,7 +103,12 @@ class FarmerService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
 
         try {
-            val capture = ScreenCapturer(this, intent.getIntExtra(EXTRA_RESULT_CODE, -1), data)
+            val capture = ScreenCapturer(
+                context = this,
+                resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1),
+                data = data,
+                onProjectionStopped = { stopSelf() },
+            )
             capture.start()
             capturer = capture
             val farmer = FarmerEngine(capture)
@@ -94,6 +116,8 @@ class FarmerService : Service() {
             engine = farmer
             FarmerState.running.value = true
             FarmerState.projectionReady.value = true
+            FarmerState.paused.value = false
+            showHud()
         } catch (t: Throwable) {
             FarmerState.log("Не удалось запустить сбор: ${t.message}", FarmerState.Level.WARN)
             stopSelf()
@@ -108,9 +132,14 @@ class FarmerService : Service() {
         }
         learningOverlay?.hide()
         pendingLearnSteps.clear()
+        pendingLearnSource = capturer?.latest?.let { ScreenFingerprint.from(it) } ?: ""
+
         val overlay = TouchLearningOverlay(
             context = this,
-            onGesture = { step -> pendingLearnSteps.add(step) },
+            onGesture = { step ->
+                pendingLearnSteps.add(step)
+                FarmerState.hudStatus.value = "Обучение: ${MacroCodecShort.describe(step)}"
+            },
             onMark = { commitLearnedRoute() },
             onStop = { stopLearning() },
         )
@@ -122,7 +151,8 @@ class FarmerService : Service() {
         learningOverlay = overlay
         FarmerState.learning.value = true
         FarmerState.overlayReady.value = true
-        FarmerState.log("Обучение начато. Совершите переход и нажмите «✓ Остров»", FarmerState.Level.OK)
+        FarmerState.hudStatus.value = "Обучение: снимаю экран и жесты"
+        FarmerState.log("Обучение начато. Жесты и отпечаток экрана запоминаются", FarmerState.Level.OK)
     }
 
     private fun commitLearnedRoute() {
@@ -130,13 +160,21 @@ class FarmerService : Service() {
             FarmerState.log("Нет записанных действий — нечего сохранять", FarmerState.Level.WARN)
             return
         }
+        val destination = capturer?.latest?.let { ScreenFingerprint.from(it) } ?: ""
+        val route = LearnedRoute(
+            steps = pendingLearnSteps.toList(),
+            source = pendingLearnSource,
+            destination = destination,
+        )
         val routes = FarmerState.learnedRoutes.value.toMutableList()
-        routes.add(pendingLearnSteps.toList())
+        routes.add(route)
         FarmerState.learnedRoutes.value = routes
         SettingsStore.save(this)
         pendingLearnSteps.clear()
-        FarmerState.log("Маршрут №${routes.size} сохранён", FarmerState.Level.OK)
-        if (engine == null && learningOverlay == null) stopSelf()
+        pendingLearnSource = destination
+        FarmerState.hudStatus.value = "Маршрут №${routes.size} выучен"
+        FarmerState.log("Маршрут №${routes.size} сохранён с отпечатком экрана", FarmerState.Level.OK)
+        if (engine == null && learningOverlay == null && hud == null) stopSelf()
     }
 
     private fun stopLearning(stopServiceIfIdle: Boolean = true) {
@@ -145,17 +183,47 @@ class FarmerService : Service() {
         pendingLearnSteps.clear()
         FarmerState.learning.value = false
         FarmerState.overlayReady.value = false
-        if (stopServiceIfIdle && engine == null) stopSelf()
+        FarmerState.hudStatus.value = "Сканирование экрана"
+        if (stopServiceIfIdle && engine == null && hud == null) stopSelf()
+    }
+
+    private fun showHud() {
+        if (!Settings.canDrawOverlays(this)) return
+        if (hud == null) {
+            hud = FarmerHud(
+                context = this,
+                onTogglePause = { sendAction(ACTION_PAUSE) },
+                onStop = { stopSelf() },
+                onHide = { sendAction(ACTION_HUD_TOGGLE) },
+            )
+        }
+        hud?.show()
+    }
+
+    private fun hideHud() {
+        hud?.hide()
+        hud = null
+    }
+
+    private fun sendAction(action: String) {
+        ContextCompat.startForegroundService(
+            this,
+            Intent(this, FarmerService::class.java).setAction(action),
+        )
     }
 
     override fun onDestroy() {
         stopLearning(stopServiceIfIdle = false)
+        hideHud()
         engine?.stop()
         capturer?.stop()
         engine = null
         capturer = null
         FarmerState.running.value = false
         FarmerState.projectionReady.value = false
+        FarmerState.paused.value = false
+        FarmerState.hudVisible.value = false
+        FarmerState.hudStatus.value = "Ожидание"
         FarmerState.lastFrame.value = null
         FarmerState.lastDetections.value = emptyList()
         super.onDestroy()
@@ -198,6 +266,14 @@ class FarmerService : Service() {
     }
 }
 
+private object MacroCodecShort {
+    fun describe(step: MacroStep): String = when (step) {
+        is MacroStep.Tap -> "тап (${step.x.toInt()}, ${step.y.toInt()})"
+        is MacroStep.Swipe -> "свайп в (${step.toX.toInt()}, ${step.toY.toInt()})"
+        is MacroStep.Wait -> "пауза ${step.durationMs} мс"
+    }
+}
+
 fun stopFarmer(context: Context) {
     context.stopService(Intent(context, FarmerService::class.java).setAction(FarmerService.ACTION_STOP))
 }
@@ -210,6 +286,13 @@ fun replayMacro(context: Context) {
 }
 
 fun sendLearnAction(context: Context, action: String) {
+    ContextCompat.startForegroundService(
+        context,
+        Intent(context, FarmerService::class.java).setAction(action),
+    )
+}
+
+fun sendServiceAction(context: Context, action: String) {
     ContextCompat.startForegroundService(
         context,
         Intent(context, FarmerService::class.java).setAction(action),

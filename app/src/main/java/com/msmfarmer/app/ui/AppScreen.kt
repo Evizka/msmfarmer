@@ -106,6 +106,7 @@ fun AppRoot(
     onRequestOverlay: () -> Unit,
     onStopLearning: () -> Unit,
     onMarkLearned: () -> Unit,
+    onToggleHud: () -> Unit,
     onSave: () -> Unit,
 ) {
     val running by FarmerState.running.collectAsStateWithLifecycle()
@@ -209,6 +210,7 @@ fun AppRoot(
                     onRequestCapture,
                     onRequestOverlay,
                     onStop,
+                    onToggleHud,
                     onSave,
                 )
                 1 -> StatsTab()
@@ -225,8 +227,11 @@ private fun HomeTab(
     onRequestCapture: () -> Unit,
     onRequestOverlay: () -> Unit,
     onStop: () -> Unit,
+    onToggleHud: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val hudVisible by FarmerState.hudVisible.collectAsStateWithLifecycle()
+    val hudStatus by FarmerState.hudStatus.collectAsStateWithLifecycle()
     val accessibility by FarmerState.accessibilityReady.collectAsStateWithLifecycle()
     val capturing by FarmerState.capturing.collectAsStateWithLifecycle()
     val overlayReady by FarmerState.overlayReady.collectAsStateWithLifecycle()
@@ -259,6 +264,16 @@ private fun HomeTab(
             done = overlayReady,
             onAction = onRequestOverlay,
         )
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Сейчас", style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)
+            Text(hudStatus, style = MaterialTheme.typography.bodyMedium)
+        }
+        OutlinedButton(onClick = onToggleHud) {
+            Text(if (hudVisible) "Скрыть HUD" else "Панель HUD")
+        }
     }
 
     Button(
@@ -494,7 +509,7 @@ private fun SettingsTab(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Маршрут ${index + 1} · ${route.size} действий", modifier = Modifier.weight(1f))
+                        Text("Маршрут ${index + 1} · ${route.steps.size} действий${if (route.source.isNotEmpty()) " · экран узнан" else ""}", modifier = Modifier.weight(1f))
                         TextButton(onClick = {
                             val next = FarmerState.learnedRoutes.value.toMutableList()
                             next.removeAt(index)

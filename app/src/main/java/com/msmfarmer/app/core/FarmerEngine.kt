@@ -72,6 +72,10 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     }
 
     private fun tick() {
+        if (FarmerState.paused.value) {
+            FarmerState.hudStatus.value = "Пауза"
+            return
+        }
         // Пока пользователь показывает маршрут вручную, автосбор мешал бы ему.
         if (FarmerState.learning.value) {
             idleSince = SystemClock.elapsedRealtime()
@@ -97,6 +101,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
 
         if (detections.isNotEmpty()) {
             idleSince = now
+            FarmerState.hudStatus.value = "Нашёл ${detections.size} — собираю монеты"
             var taps = 0
             for (d in detections) {
                 if (taps >= settings.tapsPerScan) break
@@ -119,6 +124,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             return
         }
 
+        FarmerState.hudStatus.value = "Сканирую — монет не видно"
         if (!settings.autoIslandSwitch) return
 
         val (route, label) = selectRoute()
@@ -156,16 +162,36 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private fun selectRoute(): Pair<List<MacroStep>, String> {
         val settings = FarmerState.settings.value
         val learned = FarmerState.learnedRoutes.value
+        val current = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
+
+        // По отпечатку экрана понимаем, на каком острове мы сейчас,
+        // и берём именно тот маршрут, который начинался здесь при обучении.
+        if (learned.isNotEmpty() && current.isNotEmpty()) {
+            val bySource = learned.mapIndexed { i, r -> i to ScreenFingerprint.distance(current, r.source) }
+                .filter { it.second < 0.14f }
+                .minByOrNull { it.second }
+            if (bySource != null) {
+                val route = learned[bySource.first]
+                return route.steps to "выученному маршруту №${bySource.first + 1} (экран узнан)"
+            }
+            val byDestination = learned.mapIndexed { i, r -> i to ScreenFingerprint.distance(current, r.destination) }
+                .filter { it.second < 0.14f }
+                .minByOrNull { it.second }
+            if (byDestination != null) {
+                val next = (byDestination.first + 1) % learned.size
+                return learned[next].steps to "выученному маршруту №${next + 1} (следующий остров)"
+            }
+        }
         if (settings.preferLearnedRoutes && learned.isNotEmpty()) {
             val index = islandIndex % learned.size
-            return learned[index] to "обученному маршруту №${index + 1}"
+            return learned[index].steps to "обученному маршруту №${index + 1}"
         }
         if (FarmerState.macro.value.isNotEmpty()) {
             return FarmerState.macro.value to "ручному макросу"
         }
         if (learned.isNotEmpty()) {
             val index = islandIndex % learned.size
-            return learned[index] to "обученному маршруту №${index + 1}"
+            return learned[index].steps to "обученному маршруту №${index + 1}"
         }
         return emptyList<MacroStep>() to ""
     }
@@ -173,21 +199,34 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private fun replayRoute(steps: List<MacroStep>, label: String) {
         if (steps.isEmpty()) return
         val delay = FarmerState.settings.value.replayDelayMs.coerceAtLeast(0L)
+        val before = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
+        FarmerState.hudStatus.value = "Переход на остров №${islandIndex + 1}"
         FarmerState.log("Переход к острову №${islandIndex + 1} по $label", FarmerState.Level.OK)
         for (step in steps) {
             if (!running) break
             when (step) {
-                is MacroStep.Tap -> GestureController.tap(step.x, step.y, 90L)
-                is MacroStep.Swipe -> GestureController.swipe(
-                    step.fromX,
-                    step.fromY,
-                    step.toX,
-                    step.toY,
-                    step.durationMs,
-                )
-                is MacroStep.Wait -> Unit
+                is MacroStep.Tap -> {
+                    FarmerState.hudStatus.value = "Вывожу тап (${step.x.toInt()}, ${step.y.toInt()})"
+                    GestureController.tap(step.x, step.y, 90L)
+                }
+                is MacroStep.Swipe -> {
+                    FarmerState.hudStatus.value = "Вывожу свайп"
+                    GestureController.swipe(
+                        step.fromX,
+                        step.fromY,
+                        step.toX,
+                        step.toY,
+                        step.durationMs,
+                    )
+                }
+                is MacroStep.Wait -> FarmerState.hudStatus.value = "Жду загрузку острова"
             }
             SystemClock.sleep(if (step is MacroStep.Wait) step.durationMs else step.afterMs + delay)
+        }
+        val after = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
+        if (before.isNotEmpty() && after.isNotEmpty() && ScreenFingerprint.changed(before, after)) {
+            FarmerState.log("Экран изменился — переход завершён", FarmerState.Level.OK)
+            FarmerState.hudStatus.value = "Новый остров — ищу монеты"
         }
     }
 

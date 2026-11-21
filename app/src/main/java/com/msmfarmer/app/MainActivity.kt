@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.msmfarmer.app.service.FarmerService
 import com.msmfarmer.app.service.sendLearnAction
+import com.msmfarmer.app.service.sendServiceAction
 import com.msmfarmer.app.state.FarmerState
 import com.msmfarmer.app.state.SettingsStore
 import com.msmfarmer.app.ui.AppRoot
@@ -87,6 +88,7 @@ class MainActivity : ComponentActivity() {
                         onRequestOverlay = { requestOverlayPermission() },
                         onStopLearning = { sendLearnAction(this@MainActivity, FarmerService.ACTION_LEARN_STOP) },
                         onMarkLearned = { sendLearnAction(this@MainActivity, FarmerService.ACTION_LEARN_MARK) },
+                        onToggleHud = { sendServiceAction(this@MainActivity, FarmerService.ACTION_HUD_TOGGLE) },
                         onSave = { SettingsStore.save(this@MainActivity) },
                     )
                 }

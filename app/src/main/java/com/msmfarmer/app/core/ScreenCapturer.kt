@@ -23,6 +23,7 @@ class ScreenCapturer(
     context: Context,
     private val resultCode: Int,
     data: Intent,
+    private val onProjectionStopped: () -> Unit = {},
 ) {
     private val appContext = context.applicationContext
     private val manager = appContext.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -76,6 +77,7 @@ class ScreenCapturer(
                 FarmerState.log("Захват экрана остановлен системой", FarmerState.Level.WARN)
                 latestRef.set(null)
                 FarmerState.capturing.value = false
+                onProjectionStopped()
             }
         }, handler)
 

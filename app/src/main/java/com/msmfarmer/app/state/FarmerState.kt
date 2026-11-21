@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.msmfarmer.app.model.Detection
 import com.msmfarmer.app.model.FarmerSettings
+import com.msmfarmer.app.model.LearnedRoute
 import com.msmfarmer.app.model.MacroCodec
 import com.msmfarmer.app.model.MacroStep
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,8 +17,11 @@ object FarmerState {
     val overlayReady = MutableStateFlow(false)
     val settings = MutableStateFlow(FarmerSettings())
     val macro = MutableStateFlow<List<MacroStep>>(emptyList())
-    val learnedRoutes = MutableStateFlow<List<List<MacroStep>>>(emptyList())
+    val learnedRoutes = MutableStateFlow<List<LearnedRoute>>(emptyList())
     val learning = MutableStateFlow(false)
+    val paused = MutableStateFlow(false)
+    val hudVisible = MutableStateFlow(false)
+    val hudStatus = MutableStateFlow("Ожидание")
     val lastFrame = MutableStateFlow<Bitmap?>(null)
     val lastDetections = MutableStateFlow<List<Detection>>(emptyList())
     val stats = MutableStateFlow(Stats())
@@ -113,9 +117,20 @@ object SettingsStore {
         }
     }
 
-    private fun encodeRoutes(routes: List<List<MacroStep>>): String =
-        routes.joinToString("||") { MacroCodec.encode(it).trim() }
+    private fun encodeRoutes(routes: List<LearnedRoute>): String =
+        routes.joinToString("||") { route ->
+            "${route.id}~${route.source}~${route.destination}~${MacroCodec.encode(route.steps).trim()}"
+        }
 
-    private fun decodeRoutes(text: String): List<List<MacroStep>> =
-        text.split("||").filter { it.isNotBlank() }.map { MacroCodec.decode(it) }
+    private fun decodeRoutes(text: String): List<LearnedRoute> =
+        text.split("||").filter { it.isNotBlank() }.mapNotNull { chunk ->
+            val parts = chunk.split("~", limit = 4)
+            if (parts.size != 4) return@mapNotNull null
+            LearnedRoute(
+                id = parts[0].toLongOrNull() ?: System.currentTimeMillis(),
+                steps = MacroCodec.decode(parts[3]),
+                source = parts[1],
+                destination = parts[2],
+            )
+        }
 }
