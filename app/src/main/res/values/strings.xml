@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MSM Farmer</string>
+    <string name="accessibility_description">Служба доступности нужна приложению MSM Farmer, чтобы нажимать на иконки монет в игре. Никакие данные не отправляются с устройства.</string>
+    <string name="channel_name">Сбор монет</string>
+    <string name="channel_description">Уведомление о работающем автосборе монет</string>
+    <string name="notification_title">MSM Farmer работает</string>
+    <string name="notification_text">Сканирование экрана и сбор монет активны</string>
+</resources>
