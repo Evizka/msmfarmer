@@ -251,7 +251,7 @@ object CoinDetector {
 
     /** Только диагностика: не выдаёт автоматических жестов. */
     @Synchronized
-    fun findMineCandidates(bitmap: Bitmap): List<GameIconMatcher.Hit> {
+    internal fun findMineCandidates(bitmap: Bitmap): List<GameIconMatcher.Hit> {
         val pattern = minePattern ?: return emptyList()
         val w = bitmap.width; val h = bitmap.height
         val pixels = pixelBuffer?.takeIf { it.size == w * h } ?: IntArray(w * h).also { pixelBuffer = it }
