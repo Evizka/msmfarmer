@@ -42,6 +42,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         if (stopped) return
         running = false
         stopped = true
+        GestureController.clear()
         handler.removeCallbacksAndMessages(null)
         thread.quitSafely()
     }
@@ -88,6 +89,14 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
 
         val bitmap = capturer.latest ?: return
         val now = SystemClock.elapsedRealtime()
+        if (!capturer.matchesScreen(bitmap)) {
+            FarmerState.hudStatus.value = "Ожидаю полноэкранный захват"
+            if (now - lastDiagLogAt > 4000L) {
+                lastDiagLogAt = now
+                FarmerState.log("Тапы приостановлены: ${capturer.dimensions()}. Выберите захват всего экрана.", FarmerState.Level.WARN)
+            }
+            return
+        }
 
         var settings = FarmerState.settings.value
         if (calibrateAt > 0L && now >= calibrateAt) {
@@ -106,7 +115,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
 
         if (now - lastDiagLogAt > 4000L) {
             lastDiagLogAt = now
-            FarmerState.log("Диагностика детектора: ${CoinDetector.lastDebug.summary()}", FarmerState.Level.INFO)
+            FarmerState.log("Диагностика: ${CoinDetector.lastDebug.summary()} | ${capturer.dimensions()} | ${GestureController.summary()}", FarmerState.Level.INFO)
         }
 
         // Учимся отличать монеты от статичных жёлтых деталей: если точка
@@ -151,7 +160,8 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
                     )
                     continue
                 }
-                GestureController.tap(d.x, d.y, 85L)
+                GestureController.tap(d.x, d.y, 85L, automatic = true,
+                    isValid = { running && capturer.matchesScreen(bitmap) })
                 tappedCells[key] = now
                 FarmerState.addTap()
                 taps++

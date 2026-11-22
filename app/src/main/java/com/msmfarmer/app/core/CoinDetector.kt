@@ -170,18 +170,10 @@ object CoinDetector {
             )
         }
 
-        val merged = mergeClose(found)
-        // Если эталон загружен, доверяем только ему: жёлтый декор больше
-        // не приводит к тапам по пустым местам.
+        // Не нажимаем по одному цвету: пользователь сообщал о нажатиях на декор.
+        // Совпадение с шаблоном всё равно может быть ложным и требует проверки на устройстве.
         val iconHits = if (CoinTemplate.isReady) CoinTemplate.find(bitmap, pixels) else emptyList()
-        // Если эталон ничего не нашёл (иконка другого размера/вида), всё же
-        // продолжаем собирать по цвету — чтобы бот не вставал совсем.
-        val fallback = CoinTemplate.isReady && iconHits.isEmpty()
-        val result = if (iconHits.isNotEmpty() || !CoinTemplate.isReady) {
-            if (CoinTemplate.isReady) iconHits else merged
-        } else {
-            merged
-        }
+        val result = iconHits
 
         lastDebug = DetectorDebug(
             yellowPixels = yellowPixels,
@@ -194,7 +186,7 @@ object CoinDetector {
             templateReady = CoinTemplate.isReady,
             matchedIcons = iconHits.size,
             bestTemplateScore = iconHits.maxOfOrNull { it.score } ?: 0f,
-            fallbackColor = fallback,
+            fallbackColor = false,
         )
         return result
     }

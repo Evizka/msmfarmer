@@ -19,6 +19,7 @@ object LogExporter {
         append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n")
         append("Время: ").append(java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())).append("\n\n")
         append("Диагностика детектора:\n").append(FarmerState.detectorDebug.value).append("\n\n")
+        append(GestureController.summary()).append("\n\n")
         append("Настройки: ").append(FarmerState.settings.value).append('\n')
         append("Обучено маршрутов: ").append(FarmerState.learnedRoutes.value.size).append("\n")
         append("Статистика: ").append(FarmerState.stats.value).append("\n\n")

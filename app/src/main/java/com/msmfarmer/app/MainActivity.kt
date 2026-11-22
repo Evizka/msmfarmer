@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.media.projection.MediaProjectionConfig
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -107,7 +108,11 @@ class MainActivity : ComponentActivity() {
 
     private fun requestCapture() {
         val manager = getSystemService(MediaProjectionManager::class.java)
-        projectionLauncher.launch(manager.createScreenCaptureIntent())
+        // Только полный экран: для отдельного окна нет надёжного смещения к координатам жестов.
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        } else manager.createScreenCaptureIntent()
+        projectionLauncher.launch(intent)
     }
 
     private fun openAccessibilitySettings() {
