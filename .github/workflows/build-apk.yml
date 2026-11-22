@@ -4,7 +4,7 @@ permissions:
   contents: write
 
 env:
-  RELEASE_TAG: v1.5.2
+  RELEASE_TAG: v1.5.3
 
 on:
   push:
@@ -113,7 +113,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" msm-farmer-debug.apk design/app-icon.png \
               --target "${GITHUB_REF_NAME}" \
-              --title "MSM Farmer 1.5.2" \
+              --title "MSM Farmer 1.5.3" \
               --notes-file RELEASE_NOTES.md
           fi
 

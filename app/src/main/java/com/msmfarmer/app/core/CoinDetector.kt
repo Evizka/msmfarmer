@@ -2,6 +2,9 @@ package com.msmfarmer.app.core
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import com.msmfarmer.app.R
+import com.msmfarmer.app.state.FarmerState
 import com.msmfarmer.app.model.Detection
 import com.msmfarmer.app.model.FarmerSettings
 import com.msmfarmer.app.model.maxArea
@@ -46,16 +49,27 @@ object CoinDetector {
     var lastDebug: DetectorDebug = DetectorDebug()
         private set
 
-    /** Эталон иконки монеты загружается один раз при старте приложения. */
+    @Volatile private var gamePatterns: List<GameIconMatcher.Pattern> = emptyList()
+
+    /** Шаблоны получены из скриншотов игры: золотой и фиолетовый мешки. */
+    @Synchronized
     fun prepare(context: Context) {
-        try {
-            CoinTemplate.load(context.applicationContext)
-            if (!CoinTemplate.isReady) {
-                com.msmfarmer.app.state.FarmerState.log("Эталон иконки не загружен — поиск монет невозможен", com.msmfarmer.app.state.FarmerState.Level.WARN)
+        if (gamePatterns.size == 2) return
+        val loaded = ArrayList<GameIconMatcher.Pattern>()
+        for (id in listOf(R.drawable.coin_gold_game, R.drawable.coin_purple_game)) {
+            try {
+                val bitmap = BitmapFactory.decodeResource(context.resources, id) ?: continue
+                try {
+                    val data = IntArray(bitmap.width * bitmap.height)
+                    bitmap.getPixels(data, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    loaded.add(GameIconMatcher.Pattern(bitmap.width, bitmap.height, data))
+                } finally { bitmap.recycle() }
+            } catch (e: Exception) {
+                FarmerState.log("Ошибка загрузки образца монеты: ${e.message}", FarmerState.Level.WARN)
             }
-        } catch (e: Exception) {
-            com.msmfarmer.app.state.FarmerState.log("Ошибка загрузки эталона: ${e.message}", com.msmfarmer.app.state.FarmerState.Level.WARN)
         }
+        gamePatterns = loaded
+        if (loaded.size != 2) FarmerState.log("Загружено образцов монет: ${loaded.size} из 2", FarmerState.Level.WARN)
     }
 
     @Synchronized
@@ -179,7 +193,13 @@ object CoinDetector {
 
         // Не нажимаем по одному цвету: пользователь сообщал о нажатиях на декор.
         // Совпадение с шаблоном всё равно может быть ложным и требует проверки на устройстве.
-        val iconHits = if (CoinTemplate.isReady) CoinTemplate.find(bitmap, pixels) else emptyList()
+        val patterns = gamePatterns
+        val iconHits = if (patterns.isNotEmpty()) {
+            GameIconMatcher.find(pixels, w, h, patterns, h / 1080f,
+                settings.ignoreTopFraction, settings.ignoreBottomFraction).map { hit ->
+                Detection(hit.x, hit.y, min(hit.width, hit.height) * 0.45f, hit.score)
+            }
+        } else emptyList()
         val result = iconHits
 
         lastDebug = DetectorDebug(
@@ -190,7 +210,7 @@ object CoinDetector {
             candidates = result.size,
             samples = samples.joinToString(" "),
             frameSize = "${w}x$h",
-            templateReady = CoinTemplate.isReady,
+            templateReady = patterns.size == 2,
             matchedIcons = iconHits.size,
             bestTemplateScore = iconHits.maxOfOrNull { it.score } ?: 0f,
             fallbackColor = false,
