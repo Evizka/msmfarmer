@@ -1,6 +1,5 @@
 package com.msmfarmer.app.core
 
-import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -11,12 +10,15 @@ internal object GameIconMatcher {
     private const val GRID = 8
     private const val MAX_ERROR = 0.10
     private const val COARSE_ERROR = 0.20
+    const val MIN_STRUCTURE = 0.60f
     private val coarseIndices = intArrayOf(0, 4, 9, 14, 18, 21, 27, 28, 34, 37, 41, 46, 49, 54, 56, 60)
 
     data class Pattern(val width: Int, val height: Int, val pixels: IntArray)
-    data class Hit(val x: Float, val y: Float, val width: Float, val height: Float, val score: Float)
+    data class Hit(val x: Float, val y: Float, val width: Float, val height: Float, val score: Float,
+                   val patternIndex: Int, val structure: Float)
     private data class Scaled(val w: Int, val h: Int, val xs: IntArray, val ys: IntArray,
                               val colors: IntArray, val coarseEnergy: Long, val fullEnergy: Long,
+                              val luminance: IntArray, val lumSum: Long, val lumEnergy: Long,
                               val coarseLimit: Double)
 
     /** fullPixels — несжатый RGB кадр. scale=1 соответствует высоте экрана 1080. */
@@ -30,7 +32,7 @@ internal object GameIconMatcher {
         val hits = ArrayList<Hit>()
         val firstY = ((height * ignoreTop.coerceIn(0f, 0.45f)) / STEP).toInt()
         val lastY = ((height * (1f - ignoreBottom.coerceIn(0f, 0.45f))) / STEP).toInt()
-        for (pattern in patterns) {
+        for ((patternIndex, pattern) in patterns.withIndex()) {
             if (pattern.width <= 0 || pattern.height <= 0 || pattern.pixels.size != pattern.width * pattern.height) continue
             val widths = (56..176 step 8).map { (it * scale / STEP).roundToInt().coerceAtLeast(GRID) }.distinct()
             for (w in widths) {
@@ -58,9 +60,18 @@ internal object GameIconMatcher {
                         energy += squareEnergy(a)
                     }
                     if (energy == 0L || diff.toDouble() * diff >= MAX_ERROR * MAX_ERROR * energy * p.fullEnergy) continue
+                    // Пространственная корреляция яркости: однотонный цветной фон
+                    // имеет нулевую дисперсию, даже если его RGB-каналы различаются.
+                    var lumSum = 0L; var lumEnergy = 0L; var lumProduct = 0L
+                    for (i in p.colors.indices) {
+                        val a = luminance(sampled[(y + p.ys[i]) * sw + x + p.xs[i]])
+                        lumSum += a; lumEnergy += a * a; lumProduct += a * p.luminance[i]
+                    }
+                    val structure = structureSimilarity(lumSum, lumEnergy, p.lumSum, p.lumEnergy, lumProduct, p.colors.size)
+                    if (structure < MIN_STRUCTURE) continue
                     val error = diff / sqrt(energy.toDouble() * p.fullEnergy)
                     hits.add(Hit((x + w / 2f) * STEP, (y + h / 2f) * STEP,
-                        w.toFloat() * STEP, h.toFloat() * STEP, (1.0 - error).toFloat()))
+                        w.toFloat() * STEP, h.toFloat() * STEP, (1.0 - error).toFloat(), patternIndex, structure))
                 }
             }
         }
@@ -84,10 +95,27 @@ internal object GameIconMatcher {
                 (y + 0.5f) * pattern.height / h - 0.5f)
             allEnergy += squareEnergy(colors[i])
         }
+        val luma = IntArray(colors.size) { luminance(colors[it]) }
+        val lumSum = luma.sumOf { it.toLong() }
+        val lumEnergy = luma.sumOf { (it * it).toLong() }
         val coarseEnergy = coarseIndices.sumOf { squareEnergy(colors[it]) }
         val maxSampleEnergy = coarseIndices.size.toDouble() * 3 * 255 * 255
         val limit = COARSE_ERROR * sqrt(maxSampleEnergy * coarseEnergy)
-        return Scaled(w, h, xs, ys, colors, coarseEnergy, allEnergy, limit)
+        return Scaled(w, h, xs, ys, colors, coarseEnergy, allEnergy, luma, lumSum, lumEnergy, limit)
+    }
+
+    private fun luminance(c: Int): Int =
+        (((c shr 16) and 255) * 77 + ((c shr 8) and 255) * 150 + (c and 255) * 29) shr 8
+
+    /** Корреляция по положениям пикселей, не между R/G/B одного пикселя. */
+    internal fun structureSimilarity(sumA: Long, energyA: Long, sumB: Long, energyB: Long,
+                                     product: Long, n: Int): Float {
+        if (n <= 0) return 0f
+        val varianceA = n.toDouble() * energyA - sumA.toDouble() * sumA
+        val varianceB = n.toDouble() * energyB - sumB.toDouble() * sumB
+        if (varianceA <= 1e-6 || varianceB <= 1e-6) return 0f
+        val covariance = n.toDouble() * product - sumA.toDouble() * sumB
+        return (covariance / sqrt(varianceA * varianceB)).toFloat().coerceIn(-1f, 1f)
     }
 
     private fun interpolate(p: Pattern, x: Float, y: Float): Int {

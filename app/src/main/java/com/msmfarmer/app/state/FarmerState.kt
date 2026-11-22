@@ -90,6 +90,7 @@ object SettingsStore {
             preferLearnedRoutes = p.getBoolean("preferLearnedRoutes", true),
             autoCalibrateOnIsland = p.getBoolean("autoCalibrateOnIsland", false),
             debugMarkers = p.getBoolean("debugMarkers", false),
+            mineDetectionOnly = p.getBoolean("mineDetectionOnly", false),
         )
         FarmerState.macro.value = MacroCodec.decode(p.getString("macro", "") ?: "")
         FarmerState.learnedRoutes.value = decodeRoutes(p.getString("learnedRoutes", "") ?: "")
@@ -114,6 +115,7 @@ object SettingsStore {
             putBoolean("preferLearnedRoutes", s.preferLearnedRoutes)
             putBoolean("autoCalibrateOnIsland", s.autoCalibrateOnIsland)
             putBoolean("debugMarkers", s.debugMarkers)
+            putBoolean("mineDetectionOnly", s.mineDetectionOnly)
             putString("macro", MacroCodec.encode(FarmerState.macro.value))
             putString("learnedRoutes", encodeRoutes(FarmerState.learnedRoutes.value))
             apply()

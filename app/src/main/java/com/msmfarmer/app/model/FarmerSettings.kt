@@ -21,6 +21,7 @@ data class FarmerSettings(
     val preferLearnedRoutes: Boolean = true,
     val autoCalibrateOnIsland: Boolean = false,
     val debugMarkers: Boolean = false,
+    val mineDetectionOnly: Boolean = false,
 )
 
 val FarmerSettings.minArea: Float

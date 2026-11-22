@@ -26,6 +26,10 @@ internal object SafetyChecks {
                     points[i] >= 0f && points[i] < width && points[i + 1] >= 0f && points[i + 1] < height
             }
 
+    /** Эвристика по отпечатку; отсутствие/повреждение назначения не даёт успеха. */
+    fun arrivalConfirmed(change: Float, destinationDistance: Float): Boolean =
+        change.isFinite() && destinationDistance.isFinite() && change > 0.06f && destinationDistance < 0.14f
+
     fun routeAllowed(running: Boolean, paused: Boolean, learning: Boolean, sameGeneration: Boolean): Boolean =
         running && !paused && !learning && sameGeneration
 

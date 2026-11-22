@@ -33,6 +33,8 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private var islandIndex = 0
     private var lastLogAt = 0L
     private var lastDiagLogAt = 0L
+    private var lastMineLogAt = 0L
+    private data class SelectedRoute(val steps: List<MacroStep>, val label: String, val destination: String = "")
 
     fun start() {
         if (running || stopped) return
@@ -64,11 +66,11 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             return
         }
         handler.post {
-            val (steps, label) = selectRoute()
-            if (steps.isEmpty()) {
+            val route = selectRoute()
+            if (route.steps.isEmpty()) {
                 FarmerState.log("Нет ни обученных маршрутов, ни ручного макроса", FarmerState.Level.WARN)
             } else {
-                replayRoute(steps, label, requestedGeneration)
+                replayRoute(route, requestedGeneration)
             }
         }
     }
@@ -113,6 +115,12 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
 
         FarmerState.lastFrame.value = bitmap
         val detections = CoinDetector.detect(bitmap, settings)
+        if (settings.mineDetectionOnly && now - lastMineLogAt >= 8000L) {
+            lastMineLogAt = now
+            val mineHits = CoinDetector.findMineCandidates(bitmap)
+            FarmerState.log("Шахта: кандидатов=${mineHits.size}, только диагностика, без нажатий " +
+                mineHits.take(3).joinToString { "(${it.x.toInt()},${it.y.toInt()} совп=${(it.score * 100).toInt()}%)" }, FarmerState.Level.INFO)
+        }
         FarmerState.lastDetections.value = if (settings.debugMarkers) detections else emptyList()
         FarmerState.detectorDebug.value = CoinDetector.lastDebug.summary()
         FarmerState.addScan()
@@ -180,8 +188,8 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         FarmerState.hudStatus.value = "Сканирую — монет не видно"
         if (!settings.autoIslandSwitch) return
 
-        val (route, label) = selectRoute()
-        if (route.isEmpty()) {
+        val route = selectRoute()
+        if (route.steps.isEmpty()) {
             if (now - lastLogAt > 10_000L) {
                 lastLogAt = now
                 FarmerState.log(
@@ -193,8 +201,14 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         }
         if (now - idleSince < settings.idleMsBeforeSwitch) return
 
-        if (!replayRoute(route, label)) {
+        val routeGenerationAtStart = routeGeneration.get()
+        if (!replayRoute(route, routeGenerationAtStart)) {
             idleSince = SystemClock.elapsedRealtime()
+            if (running && !FarmerState.paused.value && !FarmerState.learning.value &&
+                routeGenerationAtStart == routeGeneration.get()) {
+                FarmerState.settings.value = FarmerState.settings.value.copy(autoIslandSwitch = false)
+                FarmerState.log("Автопереход отключён: прибытие не подтверждено. Проверьте маршрут и включите снова.", FarmerState.Level.WARN)
+            }
             return
         }
 
@@ -214,7 +228,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     }
 
     /** Обученные маршруты имеют приоритет, если пользователь их не отключил. */
-    private fun selectRoute(): Pair<List<MacroStep>, String> {
+    private fun selectRoute(): SelectedRoute {
         val settings = FarmerState.settings.value
         val learned = FarmerState.learnedRoutes.value
         val current = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
@@ -227,33 +241,33 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
                 .minByOrNull { it.second }
             if (bySource != null) {
                 val route = learned[bySource.first]
-                return route.steps to "выученному маршруту №${bySource.first + 1} (экран узнан)"
+                return SelectedRoute(route.steps, "выученному маршруту №${bySource.first + 1} (экран узнан)", route.destination)
             }
             val byDestination = learned.mapIndexed { i, r -> i to ScreenFingerprint.distance(current, r.destination) }
                 .filter { it.second < 0.14f }
                 .minByOrNull { it.second }
             if (byDestination != null) {
                 val next = (byDestination.first + 1) % learned.size
-                return learned[next].steps to "выученному маршруту №${next + 1} (следующий остров)"
+                return SelectedRoute(learned[next].steps, "выученному маршруту №${next + 1} (следующий остров)", learned[next].destination)
             }
         }
         if (settings.preferLearnedRoutes && learned.isNotEmpty()) {
             val index = islandIndex % learned.size
-            return learned[index].steps to "обученному маршруту №${index + 1}"
+            return SelectedRoute(learned[index].steps, "обученному маршруту №${index + 1}", learned[index].destination)
         }
         if (FarmerState.macro.value.isNotEmpty()) {
-            return FarmerState.macro.value to "ручному макросу"
+            return SelectedRoute(FarmerState.macro.value, "ручному макросу")
         }
         if (learned.isNotEmpty()) {
             val index = islandIndex % learned.size
-            return learned[index].steps to "обученному маршруту №${index + 1}"
+            return SelectedRoute(learned[index].steps, "обученному маршруту №${index + 1}", learned[index].destination)
         }
-        return emptyList<MacroStep>() to ""
+        return SelectedRoute(emptyList(), "")
     }
 
     /** Ждём фактический callback каждого шага, иначе пауза и задержки неверны. */
-    private fun replayRoute(steps: List<MacroStep>, label: String,
-                            generation: Long = routeGeneration.get()): Boolean {
+    private fun replayRoute(route: SelectedRoute, generation: Long = routeGeneration.get()): Boolean {
+        val steps = route.steps
         if (steps.isEmpty()) return false
         val frame = capturer.latest ?: return false
         fun allowed(): Boolean = SafetyChecks.routeAllowed(running, FarmerState.paused.value,
@@ -271,7 +285,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         val delay = FarmerState.settings.value.replayDelayMs.coerceAtLeast(0L)
         val before = ScreenFingerprint.from(frame)
         FarmerState.hudStatus.value = "Переход на остров №${islandIndex + 1}"
-        FarmerState.log("Переход к острову №${islandIndex + 1} по $label", FarmerState.Level.INFO)
+        FarmerState.log("Переход к острову №${islandIndex + 1} по ${route.label}", FarmerState.Level.INFO)
         for (step in steps) {
             if (!allowed()) {
                 FarmerState.log("Маршрут прерван: пауза, обучение, остановка или изменение экрана", FarmerState.Level.WARN)
@@ -300,12 +314,28 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             if (!interruptibleWait(step.afterMs + delay)) return false
         }
         if (!allowed()) return false
-        val after = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
-        if (before.isNotEmpty() && after.isNotEmpty() && ScreenFingerprint.changed(before, after)) {
-            FarmerState.log("Экран изменился — переход завершён", FarmerState.Level.OK)
-            FarmerState.hudStatus.value = "Новый остров — ищу монеты"
+        // Выполненные жесты не доказывают прибытия: ищем совпадение с обученным экраном.
+        val deadline = SystemClock.elapsedRealtime() + 6000L
+        var delta = 0f
+        var destinationDelta = Float.MAX_VALUE
+        while (allowed() && SystemClock.elapsedRealtime() < deadline) {
+            val after = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
+            if (after.isNotEmpty()) {
+                delta = ScreenFingerprint.distance(before, after)
+                if (route.destination.isNotEmpty()) destinationDelta = ScreenFingerprint.distance(after, route.destination)
+                if (SafetyChecks.arrivalConfirmed(delta, destinationDelta)) {
+                    FarmerState.log("Экран изменился и похож на обученное прибытие (Δ=${String.format(java.util.Locale.US, "%.3f", delta)}, до цели=${String.format(java.util.Locale.US, "%.3f", destinationDelta)})", FarmerState.Level.OK)
+                    FarmerState.hudStatus.value = "Найден похожий остров — ищу монеты"
+                    return true
+                }
+            }
+            if (!interruptibleWait(200L)) return false
         }
-        return true
+        if (!allowed()) return false
+        FarmerState.log(if (route.destination.isEmpty())
+            "Маршрут выполнен, но экран назначения не обучен — остров не засчитан"
+            else "Прибытие не подтверждено: Δ=${String.format(java.util.Locale.US, "%.3f", delta)}, до цели=${String.format(java.util.Locale.US, "%.3f", destinationDelta)}", FarmerState.Level.WARN)
+        return false
     }
 
     private fun cellKey(x: Float, y: Float): Long =

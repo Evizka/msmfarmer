@@ -40,4 +40,12 @@ class SafetyChecksTest {
         assertEquals(0f, SafetyChecks.grayscaleDistance(byteArrayOf((-1).toByte()), byteArrayOf((-1).toByte())), 0.00001f)
     }
 
+    @Test fun arrivalNeedsChangeAndKnownDestination() {
+        assertFalse(SafetyChecks.arrivalConfirmed(0.01f, 0.01f))
+        assertFalse(SafetyChecks.arrivalConfirmed(0.06f, 0.01f))
+        assertFalse(SafetyChecks.arrivalConfirmed(0.3f, Float.MAX_VALUE))
+        assertFalse(SafetyChecks.arrivalConfirmed(0.3f, 0.4f))
+        assertTrue(SafetyChecks.arrivalConfirmed(0.3f, 0.05f))
+    }
+
 }

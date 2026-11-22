@@ -290,7 +290,7 @@ private fun HomeTab(
         StatTile(
             icon = Icons.Outlined.Bolt,
             value = stats.taps.toString(),
-            label = "Собрано",
+            label = "Попыток",
             modifier = Modifier.weight(1f),
         )
         StatTile(
@@ -375,7 +375,7 @@ private fun StatsTab() {
     SoftCard("Сводка") {
         Row(Modifier.fillMaxWidth()) {
             DetailStat("Сканирований", stats.scans.toString(), Modifier.weight(1f))
-            DetailStat("Нажатий", stats.taps.toString(), Modifier.weight(1f))
+            DetailStat("Попыток тапа", stats.taps.toString(), Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth()) {
             DetailStat("Островов", stats.islandsVisited.toString(), Modifier.weight(1f))
@@ -446,6 +446,9 @@ private fun SettingsTab(
             style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)
         SwitchRow("Показывать найденные монеты", settings.debugMarkers) {
             update { s -> s.copy(debugMarkers = it) }
+        }
+        SwitchRow("Искать шахту — только лог, без тапов", settings.mineDetectionOnly) {
+            update { s -> s.copy(mineDetectionOnly = it) }
         }
     }
 

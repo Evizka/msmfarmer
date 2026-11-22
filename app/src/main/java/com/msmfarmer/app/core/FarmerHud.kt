@@ -109,7 +109,7 @@ class FarmerHud(
                 !FarmerState.running.value -> "Ожидание запуска"
                 else -> FarmerState.hudStatus.value
             }
-            statsView.text = "монет ${stats.taps} · островов ${stats.islandsVisited} · сканов ${stats.scans}"
+            statsView.text = "попыток ${stats.taps} · островов ${stats.islandsVisited} · сканов ${stats.scans}"
             pauseButton.text = if (FarmerState.paused.value) "▶" else "⏸"
             handler.postDelayed(this, 250L)
         }

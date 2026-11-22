@@ -3,6 +3,8 @@ package com.msmfarmer.app.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.SystemClock
+import java.util.Locale
 import com.msmfarmer.app.R
 import com.msmfarmer.app.state.FarmerState
 import com.msmfarmer.app.model.Detection
@@ -27,13 +29,20 @@ data class DetectorDebug(
     val matchedIcons: Int = 0,
     val bestTemplateScore: Float = 0f,
     val fallbackColor: Boolean = false,
+    val detectMs: Long = 0L,
+    val scale: Float = 0f,
+    val goldHits: Int = 0,
+    val purpleHits: Int = 0,
+    val details: String = "",
 ) {
     fun summary(): String =
         "жёлтых=$yellowPixels компонент=$components отсеяно(размер)=$rejectedArea " +
             "отсеяно(форма)=$rejectedShape кандидатов=$candidates " +
             "иконок=$matchedIcons шаблон=${if (templateReady) "готов" else "нет"} " +
             "режим=${if (fallbackColor) "цвет" else "иконка"} " +
-            "лучший_из_найденных=${(bestTemplateScore * 100).toInt()}% $frameSize $samples"
+            "лучший_из_найденных=${(bestTemplateScore * 100).toInt()}% $frameSize $samples " +
+            "золото=$goldHits фиолет=$purpleHits масштаб=${String.format(Locale.US, "%.2f", scale)} " +
+            "ширина=${(56 * scale).toInt()}..${(176 * scale).toInt()}px поиск=${detectMs}мс $details"
 }
 
 /**
@@ -50,11 +59,12 @@ object CoinDetector {
         private set
 
     @Volatile private var gamePatterns: List<GameIconMatcher.Pattern> = emptyList()
+    @Volatile private var minePattern: GameIconMatcher.Pattern? = null
 
     /** Шаблоны получены из скриншотов игры: золотой и фиолетовый мешки. */
     @Synchronized
     fun prepare(context: Context) {
-        if (gamePatterns.size == 2) return
+        if (gamePatterns.size == 2 && minePattern != null) return
         val loaded = ArrayList<GameIconMatcher.Pattern>()
         for (id in listOf(R.drawable.coin_gold_game, R.drawable.coin_purple_game)) {
             try {
@@ -62,6 +72,8 @@ object CoinDetector {
                 try {
                     val data = IntArray(bitmap.width * bitmap.height)
                     bitmap.getPixels(data, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    val transparent = data.count { (it ushr 24) < 250 }
+                    if (transparent > data.size / 100) FarmerState.log("Образец содержит прозрачные пиксели: $transparent из ${data.size}", FarmerState.Level.WARN)
                     loaded.add(GameIconMatcher.Pattern(bitmap.width, bitmap.height, data))
                 } finally { bitmap.recycle() }
             } catch (e: Exception) {
@@ -69,11 +81,22 @@ object CoinDetector {
             }
         }
         gamePatterns = loaded
+        try {
+            val bmp = BitmapFactory.decodeResource(context.resources, R.drawable.mine_ready_game)
+            if (bmp != null) {
+                try {
+                    val data = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(data, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    minePattern = GameIconMatcher.Pattern(bmp.width, bmp.height, data)
+                } finally { bmp.recycle() }
+            }
+        } catch (e: Exception) { FarmerState.log("Не загружен образец шахты: ${e.message}", FarmerState.Level.WARN) }
         if (loaded.size != 2) FarmerState.log("Загружено образцов монет: ${loaded.size} из 2", FarmerState.Level.WARN)
     }
 
     @Synchronized
     fun detect(bitmap: Bitmap, settings: FarmerSettings): List<Detection> {
+        val startTime = SystemClock.elapsedRealtime()
         val w = bitmap.width
         val h = bitmap.height
         if (w < SAMPLE || h < SAMPLE) {
@@ -194,12 +217,13 @@ object CoinDetector {
         // Не нажимаем по одному цвету: пользователь сообщал о нажатиях на декор.
         // Совпадение с шаблоном всё равно может быть ложным и требует проверки на устройстве.
         val patterns = gamePatterns
-        val iconHits = if (patterns.isNotEmpty()) {
+        val rawHits = if (patterns.isNotEmpty()) {
             GameIconMatcher.find(pixels, w, h, patterns, h / 1080f,
-                settings.ignoreTopFraction, settings.ignoreBottomFraction).map { hit ->
-                Detection(hit.x, hit.y, min(hit.width, hit.height) * 0.45f, hit.score)
-            }
+                settings.ignoreTopFraction, settings.ignoreBottomFraction)
         } else emptyList()
+        val iconHits = rawHits.map { hit ->
+            Detection(hit.x, hit.y, min(hit.width, hit.height) * 0.45f, hit.score)
+        }
         val result = iconHits
 
         lastDebug = DetectorDebug(
@@ -214,8 +238,25 @@ object CoinDetector {
             matchedIcons = iconHits.size,
             bestTemplateScore = iconHits.maxOfOrNull { it.score } ?: 0f,
             fallbackColor = false,
+            detectMs = SystemClock.elapsedRealtime() - startTime,
+            scale = h / 1080f,
+            goldHits = if (patterns.size == 2) rawHits.count { it.patternIndex == 0 } else 0,
+            purpleHits = if (patterns.size == 2) rawHits.count { it.patternIndex == 1 } else 0,
+            details = rawHits.take(4).joinToString(" ") {
+                "(${it.x.toInt()},${it.y.toInt()} ${it.width.toInt()}x${it.height.toInt()} совп=${(it.score * 100).toInt()}% структура=${(it.structure * 100).toInt()}%)"
+            },
         )
         return result
+    }
+
+    /** Только диагностика: не выдаёт автоматических жестов. */
+    @Synchronized
+    fun findMineCandidates(bitmap: Bitmap): List<GameIconMatcher.Hit> {
+        val pattern = minePattern ?: return emptyList()
+        val w = bitmap.width; val h = bitmap.height
+        val pixels = pixelBuffer?.takeIf { it.size == w * h } ?: IntArray(w * h).also { pixelBuffer = it }
+        bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+        return GameIconMatcher.find(pixels, w, h, listOf(pattern), h / 1080f, 0.1f, 0.08f)
     }
 
     private fun mergeClose(items: List<Detection>): List<Detection> {
