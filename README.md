@@ -61,7 +61,7 @@ Android-приложение для автоматического сбора м
 
 APK будет здесь: `app/build/outputs/apk/debug/app-debug.apk`.
 
-Готовый debug-APK лежит в корне репозитория: [`msm-farmer-debug.apk`](msm-farmer-debug.apk), а также опубликован в [релизе v1.5.1](https://github.com/Evizka/msmfarmer/releases/tag/v1.5.1) вместе с иконкой `app-icon.png`. Он собран через GitHub Actions и подписан отладочным ключом. Установка: `adb install -r msm-farmer-debug.apk` (или просто откройте файл на телефоне и разрешите установку из неизвестных источников).
+Готовый debug-APK лежит в корне репозитория: [`msm-farmer-debug.apk`](msm-farmer-debug.apk), а также опубликован в [релизе v1.5.2](https://github.com/Evizka/msmfarmer/releases/tag/v1.5.2) вместе с иконкой `app-icon.png`. Он собран через GitHub Actions и подписан отладочным ключом. Установка: `adb install -r msm-farmer-debug.apk` (или просто откройте файл на телефоне и разрешите установку из неизвестных источников).
 
 Иконка приложения: [`design/app-icon.png`](design/app-icon.png) — зелёный квадрат с золотой монетой и ростком. В проекте используются корректные адаптивные иконки: фон задаётся цветом, а передний слой (`drawable-nodpi/ic_launcher_foreground.png`) вписан в безопасную зону launcher-маски.
 

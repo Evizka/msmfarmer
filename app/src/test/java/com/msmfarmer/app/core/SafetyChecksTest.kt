@@ -34,4 +34,10 @@ class SafetyChecksTest {
         assertFalse(SafetyChecks.routeAllowed(true, false, false, false))
     }
 
+    @Test fun fingerprintTreatsGrayscaleBytesAsUnsigned() {
+        assertEquals(1f / 255f, SafetyChecks.grayscaleDistance(byteArrayOf(127), byteArrayOf((-128).toByte())), 0.00001f)
+        assertEquals(1f, SafetyChecks.grayscaleDistance(byteArrayOf(0), byteArrayOf((-1).toByte())), 0.00001f)
+        assertEquals(0f, SafetyChecks.grayscaleDistance(byteArrayOf((-1).toByte()), byteArrayOf((-1).toByte())), 0.00001f)
+    }
+
 }

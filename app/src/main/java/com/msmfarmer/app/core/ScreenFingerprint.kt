@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.util.Base64
-import kotlin.math.abs
 
 /**
  * Очень компактный «отпечаток» экрана: 24×48 точек в оттенках серого.
@@ -41,9 +40,8 @@ object ScreenFingerprint {
         val left = decode(a) ?: return Float.MAX_VALUE
         val right = decode(b) ?: return Float.MAX_VALUE
         if (left.size != right.size) return Float.MAX_VALUE
-        var sum = 0
-        for (i in left.indices) sum += abs(left[i].toInt() - right[i].toInt())
-        return sum.toFloat() / left.size / 255f
+        if (left.isEmpty()) return Float.MAX_VALUE
+        return SafetyChecks.grayscaleDistance(left, right)
     }
 
     fun changed(before: String, after: String, threshold: Float = 0.06f): Boolean =

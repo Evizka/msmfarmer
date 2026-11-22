@@ -9,6 +9,16 @@ internal object SafetyChecks {
             ((contentWidth == 0 && contentHeight == 0) ||
                 (contentWidth == screenWidth && contentHeight == screenHeight))
 
+    /** Яркости хранятся в байтах как 0..255, не как знаковые значения Kotlin Byte. */
+    fun grayscaleDistance(left: ByteArray, right: ByteArray): Float {
+        require(left.isNotEmpty() && left.size == right.size)
+        var sum = 0L
+        for (i in left.indices) {
+            sum += kotlin.math.abs((left[i].toInt() and 255) - (right[i].toInt() and 255))
+        }
+        return sum.toFloat() / left.size / 255f
+    }
+
     fun pointsInBounds(points: FloatArray, width: Int, height: Int): Boolean =
         width > 0 && height > 0 && points.isNotEmpty() && points.size % 2 == 0 &&
             points.indices.step(2).all { i ->
