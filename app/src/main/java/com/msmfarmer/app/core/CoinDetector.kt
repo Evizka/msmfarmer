@@ -30,7 +30,7 @@ data class DetectorDebug(
             "отсеяно(форма)=$rejectedShape кандидатов=$candidates " +
             "иконок=$matchedIcons шаблон=${if (templateReady) "готов" else "нет"} " +
             "режим=${if (fallbackColor) "цвет" else "иконка"} " +
-            "лучший=${(bestTemplateScore * 100).toInt()}% $frameSize $samples"
+            "лучший_из_найденных=${(bestTemplateScore * 100).toInt()}% $frameSize $samples"
 }
 
 /**
@@ -48,7 +48,14 @@ object CoinDetector {
 
     /** Эталон иконки монеты загружается один раз при старте приложения. */
     fun prepare(context: Context) {
-        CoinTemplate.load(context.applicationContext)
+        try {
+            CoinTemplate.load(context.applicationContext)
+            if (!CoinTemplate.isReady) {
+                com.msmfarmer.app.state.FarmerState.log("Эталон иконки не загружен — поиск монет невозможен", com.msmfarmer.app.state.FarmerState.Level.WARN)
+            }
+        } catch (e: Exception) {
+            com.msmfarmer.app.state.FarmerState.log("Ошибка загрузки эталона: ${e.message}", com.msmfarmer.app.state.FarmerState.Level.WARN)
+        }
     }
 
     @Synchronized
@@ -189,22 +196,6 @@ object CoinDetector {
             fallbackColor = false,
         )
         return result
-    }
-
-    @Synchronized
-    fun autoCalibrate(bitmap: Bitmap, baseSettings: FarmerSettings, target: Int = 8): Float {
-        val candidates = listOf(0.20f, 0.30f, 0.40f, 0.50f, 0.60f, 0.70f, 0.80f, 0.90f, 0.95f)
-        var best = baseSettings.sensitivity
-        var bestScore = Int.MAX_VALUE
-        for (candidate in candidates) {
-            val count = detect(bitmap, baseSettings.copy(sensitivity = candidate)).size
-            val score = abs(count - target)
-            if (score <= bestScore) {
-                bestScore = score
-                best = candidate
-            }
-        }
-        return best
     }
 
     private fun mergeClose(items: List<Detection>): List<Detection> {

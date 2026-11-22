@@ -5,7 +5,10 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import com.msmfarmer.app.model.MacroStep
 import com.msmfarmer.app.state.FarmerState
-import kotlin.math.roundToInt
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Основной цикл: захват кадра → поиск жёлтых иконок → тапы
@@ -21,13 +24,15 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
     private val keyCoords = HashMap<Long, String>()
     @Volatile private var running = false
     @Volatile private var stopped = false
+    private val routeGeneration = AtomicLong(0)
+
+    /** Также инвалидирует шаги, ещё не доставленные в main-поток. */
+    fun interruptRoute() { routeGeneration.incrementAndGet() }
 
     private var idleSince = 0L
     private var islandIndex = 0
     private var lastLogAt = 0L
     private var lastDiagLogAt = 0L
-    private var typicalCoinCount = 8
-    private var calibrateAt = 0L
 
     fun start() {
         if (running || stopped) return
@@ -42,6 +47,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         if (stopped) return
         running = false
         stopped = true
+        interruptRoute()
         GestureController.clear()
         handler.removeCallbacksAndMessages(null)
         thread.quitSafely()
@@ -52,12 +58,17 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             FarmerState.log("Сначала запустите сбор", FarmerState.Level.WARN)
             return
         }
+        val requestedGeneration = routeGeneration.get()
+        if (FarmerState.paused.value || FarmerState.learning.value) {
+            FarmerState.log("Нельзя запустить маршрут во время паузы или обучения", FarmerState.Level.WARN)
+            return
+        }
         handler.post {
             val (steps, label) = selectRoute()
             if (steps.isEmpty()) {
                 FarmerState.log("Нет ни обученных маршрутов, ни ручного макроса", FarmerState.Level.WARN)
             } else {
-                replayRoute(steps, label)
+                replayRoute(steps, label, requestedGeneration)
             }
         }
     }
@@ -98,14 +109,7 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             return
         }
 
-        var settings = FarmerState.settings.value
-        if (calibrateAt > 0L && now >= calibrateAt) {
-            calibrateAt = 0L
-            val tuned = CoinDetector.autoCalibrate(bitmap, settings, typicalCoinCount)
-            settings = settings.copy(sensitivity = tuned)
-            FarmerState.settings.value = settings
-            FarmerState.log("Чувствительность подстроена под новый остров: ${(tuned * 100).roundToInt()}%", FarmerState.Level.OK)
-        }
+        val settings = FarmerState.settings.value
 
         FarmerState.lastFrame.value = bitmap
         val detections = CoinDetector.detect(bitmap, settings)
@@ -166,11 +170,6 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
                 FarmerState.addTap()
                 taps++
             }
-            if (taps > 0) {
-                typicalCoinCount = (typicalCoinCount * 0.8f + active.size * 0.2f)
-                    .roundToInt()
-                    .coerceIn(3, 24)
-            }
             if (taps > 0 && now - lastLogAt > 1500L) {
                 lastLogAt = now
                 FarmerState.log("Нажатий за проход: $taps", FarmerState.Level.OK)
@@ -194,7 +193,10 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         }
         if (now - idleSince < settings.idleMsBeforeSwitch) return
 
-        replayRoute(route, label)
+        if (!replayRoute(route, label)) {
+            idleSince = SystemClock.elapsedRealtime()
+            return
+        }
 
         val totalIslands = settings.islandsCount.coerceAtLeast(1)
         islandIndex++
@@ -207,7 +209,6 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
             islandIndex = 0
         }
         FarmerState.islandVisited(islandIndex)
-        if (settings.autoCalibrateOnIsland) calibrateAt = now + 2000L
         tappedCells.clear()
         idleSince = now
     }
@@ -250,38 +251,61 @@ class FarmerEngine(private val capturer: ScreenCapturer) {
         return emptyList<MacroStep>() to ""
     }
 
-    private fun replayRoute(steps: List<MacroStep>, label: String) {
-        if (steps.isEmpty()) return
-        val delay = FarmerState.settings.value.replayDelayMs.coerceAtLeast(0L)
-        val before = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
-        FarmerState.hudStatus.value = "Переход на остров №${islandIndex + 1}"
-        FarmerState.log("Переход к острову №${islandIndex + 1} по $label", FarmerState.Level.OK)
-        for (step in steps) {
-            if (!running) break
-            when (step) {
-                is MacroStep.Tap -> {
-                    FarmerState.hudStatus.value = "Вывожу тап (${step.x.toInt()}, ${step.y.toInt()})"
-                    GestureController.tap(step.x, step.y, 90L)
-                }
-                is MacroStep.Swipe -> {
-                    FarmerState.hudStatus.value = "Вывожу свайп"
-                    GestureController.swipe(
-                        step.fromX,
-                        step.fromY,
-                        step.toX,
-                        step.toY,
-                        step.durationMs,
-                    )
-                }
-                is MacroStep.Wait -> FarmerState.hudStatus.value = "Жду загрузку острова"
+    /** Ждём фактический callback каждого шага, иначе пауза и задержки неверны. */
+    private fun replayRoute(steps: List<MacroStep>, label: String,
+                            generation: Long = routeGeneration.get()): Boolean {
+        if (steps.isEmpty()) return false
+        val frame = capturer.latest ?: return false
+        fun allowed(): Boolean = SafetyChecks.routeAllowed(running, FarmerState.paused.value,
+            FarmerState.learning.value, routeGeneration.get() == generation) && capturer.matchesScreen(frame)
+        fun interruptibleWait(ms: Long): Boolean {
+            val deadline = SystemClock.elapsedRealtime() + ms.coerceAtLeast(0L)
+            while (allowed()) {
+                val remaining = deadline - SystemClock.elapsedRealtime()
+                if (remaining <= 0) return true
+                SystemClock.sleep(minOf(remaining, 100L))
             }
-            SystemClock.sleep(if (step is MacroStep.Wait) step.durationMs else step.afterMs + delay)
+            return false
         }
+        if (!allowed()) return false
+        val delay = FarmerState.settings.value.replayDelayMs.coerceAtLeast(0L)
+        val before = ScreenFingerprint.from(frame)
+        FarmerState.hudStatus.value = "Переход на остров №${islandIndex + 1}"
+        FarmerState.log("Переход к острову №${islandIndex + 1} по $label", FarmerState.Level.INFO)
+        for (step in steps) {
+            if (!allowed()) {
+                FarmerState.log("Маршрут прерван: пауза, обучение, остановка или изменение экрана", FarmerState.Level.WARN)
+                return false
+            }
+            if (step is MacroStep.Wait) {
+                FarmerState.hudStatus.value = "Жду загрузку острова"
+                if (!interruptibleWait(step.durationMs)) return false
+                continue
+            }
+            val done = CountDownLatch(1)
+            val success = AtomicBoolean(false)
+            val callback: (Boolean) -> Unit = { ok -> success.set(ok); done.countDown() }
+            when (step) {
+                is MacroStep.Tap -> GestureController.tap(step.x, step.y, 90L,
+                    isValid = { allowed() }, onResult = callback)
+                is MacroStep.Swipe -> GestureController.swipe(step.fromX, step.fromY, step.toX, step.toY,
+                    step.durationMs, isValid = { allowed() }, onResult = callback)
+                is MacroStep.Wait -> Unit
+            }
+            while (allowed() && !done.await(100, TimeUnit.MILLISECONDS)) { /* ожидание callback */ }
+            if (!allowed() || !success.get()) {
+                FarmerState.log("Маршрут прерван: жест не завершён", FarmerState.Level.WARN)
+                return false
+            }
+            if (!interruptibleWait(step.afterMs + delay)) return false
+        }
+        if (!allowed()) return false
         val after = capturer.latest?.let { ScreenFingerprint.from(it) } ?: ""
         if (before.isNotEmpty() && after.isNotEmpty() && ScreenFingerprint.changed(before, after)) {
             FarmerState.log("Экран изменился — переход завершён", FarmerState.Level.OK)
             FarmerState.hudStatus.value = "Новый остров — ищу монеты"
         }
+        return true
     }
 
     private fun cellKey(x: Float, y: Float): Long =

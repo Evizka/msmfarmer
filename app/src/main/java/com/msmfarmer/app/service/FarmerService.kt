@@ -84,7 +84,10 @@ class FarmerService : Service() {
             ACTION_PAUSE -> {
                 val paused = !FarmerState.paused.value
                 FarmerState.paused.value = paused
-                if (paused) GestureController.clear()
+                if (paused) {
+                    engine?.interruptRoute()
+                    GestureController.clear()
+                }
                 FarmerState.log(if (paused) "Сбор на паузе" else "Сбор продолжен", FarmerState.Level.INFO)
                 if (engine == null && learningOverlay == null && hud == null) stopSelf()
             }
@@ -141,6 +144,7 @@ class FarmerService : Service() {
     }
 
     private fun startLearning() {
+        engine?.interruptRoute()
         GestureController.clear()
         if (FarmerAccessibilityService.instance == null) {
             FarmerState.log("Для обучения включите службу доступности", FarmerState.Level.WARN)

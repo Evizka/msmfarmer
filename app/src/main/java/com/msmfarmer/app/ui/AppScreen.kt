@@ -89,7 +89,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.msmfarmer.app.core.CoinDetector
 import com.msmfarmer.app.core.LogExporter
 import com.msmfarmer.app.model.Detection
 import com.msmfarmer.app.model.FarmerSettings
@@ -433,7 +432,7 @@ private fun SettingsTab(
 
     SoftCard("Распознавание") {
         SliderRow(
-            label = "Чувствительность",
+            label = "Чувствительность диагностики цвета",
             valueText = "${(settings.sensitivity * 100).roundToInt()}%",
             value = settings.sensitivity,
         ) { update { s -> s.copy(sensitivity = it) } }
@@ -443,20 +442,8 @@ private fun SettingsTab(
             value = settings.tapsPerScan.toFloat(),
             range = 1f..12f,
         ) { update { s -> s.copy(tapsPerScan = it.roundToInt()) } }
-        OutlinedButton(
-            onClick = {
-                val bitmap = frame
-                if (bitmap != null) {
-                    val tuned = CoinDetector.autoCalibrate(bitmap, FarmerState.settings.value)
-                    update { s -> s.copy(sensitivity = tuned) }
-                    FarmerState.log("Чувствительность обучена: ${(tuned * 100).roundToInt()}%", FarmerState.Level.OK)
-                } else {
-                    FarmerState.log("Нет кадра для обучения", FarmerState.Level.WARN)
-                }
-            },
-            enabled = frame != null,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Обучить по текущему кадру") }
+        Text("Чувствительность влияет только на диагностику цвета. Автокалибровка шаблона пока недоступна.",
+            style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)
         SwitchRow("Показывать найденные монеты", settings.debugMarkers) {
             update { s -> s.copy(debugMarkers = it) }
         }
@@ -499,9 +486,6 @@ private fun SettingsTab(
         }
         SwitchRow("Использовать выученные маршруты", settings.preferLearnedRoutes) {
             update { s -> s.copy(preferLearnedRoutes = it) }
-        }
-        SwitchRow("Подстраивать после перехода", settings.autoCalibrateOnIsland) {
-            update { s -> s.copy(autoCalibrateOnIsland = it) }
         }
         if (learnedRoutes.isEmpty()) {
             Text("Маршрутов пока нет", style = MaterialTheme.typography.bodySmall, color = AppColors.TextMuted)

@@ -79,6 +79,9 @@ class ScreenCapturer(context: Context, private val resultCode: Int, data: Intent
                 contentWidth = w; contentHeight = h
                 latestRef.set(null)
                 FarmerState.log("Размер захваченного содержимого: ${w}x$h; ${dimensions()}", FarmerState.Level.INFO)
+                resizeToScreen()
+                // Display может обновить реальные размеры чуть позже callback контента.
+                handler.postDelayed({ resizeToScreen() }, 250L)
             }
         }, handler)
         val (w, h) = screenSize()
@@ -89,6 +92,7 @@ class ScreenCapturer(context: Context, private val resultCode: Int, data: Intent
         virtualDisplay = mp.createVirtualDisplay("MSMFarmerCapture", w, h, density,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, newReader.surface, null, handler)
         displays.registerDisplayListener(displayListener, handler)
+        handler.post { resizeToScreen() }
         active = true
         FarmerState.capturing.value = true
         FarmerState.log("Захват экрана запущен: ${w}x$h", FarmerState.Level.OK)
@@ -99,27 +103,38 @@ class ScreenCapturer(context: Context, private val resultCode: Int, data: Intent
         override fun onDisplayRemoved(id: Int) = Unit
         override fun onDisplayChanged(id: Int) {
             if (id != Display.DEFAULT_DISPLAY || stopped) return
-            val (w, h) = screenSize()
-            if (w <= 0 || h <= 0 || (w == width && h == height)) return
-            val vd = virtualDisplay ?: return
-            latestRef.set(null)
-            GestureController.clear()
-            val newReader = makeReader(w, h)
-            try {
-                // Не вызываем createVirtualDisplay повторно: токен одноразовый на API 34+.
-                vd.resize(w, h, density)
-                vd.surface = newReader.surface
-                val old = reader
-                reader = newReader
-                width = w; height = h
-                old?.close()
-                FarmerState.log("Размер экрана изменён: ${w}x$h", FarmerState.Level.INFO)
-            } catch (e: Exception) {
-                newReader.close()
-                FarmerState.log("Не удалось изменить размер захвата: ${e.message}", FarmerState.Level.WARN)
-                FarmerState.capturing.value = false
-                onProjectionStopped()
-            }
+            resizeToScreen()
+        }
+    }
+
+    /** Используем размеры дисплея, а не произвольного окна приложения. */
+    private fun resizeToScreen() {
+        if (stopped) return
+        val (w, h) = screenSize()
+        if (w <= 0 || h <= 0 || (w == width && h == height)) return
+        val vd = virtualDisplay ?: return
+        latestRef.set(null)
+        GestureController.clear()
+        val newReader = try { makeReader(w, h) } catch (e: Exception) {
+            active = false
+            FarmerState.log("Не удалось создать кадр: ${e.message}", FarmerState.Level.WARN)
+            onProjectionStopped()
+            return
+        }
+        try {
+            vd.resize(w, h, density)
+            vd.surface = newReader.surface
+            val old = reader
+            reader = newReader
+            width = w; height = h
+            old?.close()
+            FarmerState.log("Размер экрана изменён: ${w}x$h", FarmerState.Level.INFO)
+        } catch (e: Exception) {
+            newReader.close()
+            active = false
+            FarmerState.log("Не удалось изменить размер захвата: ${e.message}", FarmerState.Level.WARN)
+            FarmerState.capturing.value = false
+            onProjectionStopped()
         }
     }
 
