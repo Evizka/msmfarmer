@@ -2,20 +2,33 @@ package com.msmfarmer.app.core
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.awt.image.BufferedImage
-import javax.imageio.ImageIO
+import java.io.DataInputStream
+import java.util.zip.GZIPInputStream
 
 class GameIconMatcherTest {
-    private fun image(name: String): BufferedImage = ImageIO.read(javaClass.getResourceAsStream("/recognition/$name"))
-    private fun pixels(image: BufferedImage) = image.getRGB(0, 0, image.width, image.height, null, 0, image.width)
+    private data class Frame(val width: Int, val height: Int, val pixels: IntArray)
+    private fun image(name: String): Frame {
+        val resource = javaClass.getResourceAsStream("/recognition/${name.removeSuffix(".png")}.rgb.gz")
+            ?: error("missing fixture $name")
+        DataInputStream(GZIPInputStream(resource)).use { input ->
+            val w = input.readInt(); val h = input.readInt()
+            val raw = ByteArray(w * h * 3)
+            input.readFully(raw)
+            val pixels = IntArray(w * h) { i ->
+                ((raw[i * 3].toInt() and 255) shl 16) or
+                    ((raw[i * 3 + 1].toInt() and 255) shl 8) or (raw[i * 3 + 2].toInt() and 255)
+            }
+            return Frame(w, h, pixels)
+        }
+    }
     private fun pattern(name: String): GameIconMatcher.Pattern {
         val image = image(name)
-        return GameIconMatcher.Pattern(image.width, image.height, pixels(image))
+        return GameIconMatcher.Pattern(image.width, image.height, image.pixels)
     }
     private val patterns by lazy { listOf(pattern("ref-gold.png"), pattern("ref-purple.png")) }
     private fun find(name: String): List<GameIconMatcher.Hit> {
         val image = image(name)
-        return GameIconMatcher.find(pixels(image), image.width, image.height, patterns, 1f)
+        return GameIconMatcher.find(image.pixels, image.width, image.height, patterns, 1f)
     }
     private fun hasNear(hits: List<GameIconMatcher.Hit>, x: Int, y: Int): Boolean =
         hits.any { kotlin.math.abs(it.x - x) < 25 && kotlin.math.abs(it.y - y) < 25 }
